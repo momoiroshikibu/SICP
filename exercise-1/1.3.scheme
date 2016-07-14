@@ -1,0 +1,11 @@
+(define (max-two-of-three x y z)
+  (let* ((numbers (sort(list x y z) >))
+        (max1 (car numbers))
+        (max2 (cadr numbers)))
+    (sort (list max1 max2) <)))
+(max-two-of-three 1 2 3)
+
+
+(define (max-two-of-three x y z)
+  (cdr (sort (list x y z) <)))
+(max-two-of-three 1 2 3)

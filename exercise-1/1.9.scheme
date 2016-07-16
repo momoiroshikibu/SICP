@@ -1,0 +1,20 @@
+;; (linear) recursive process
+(define (+ a b)
+  (if (= a 0) b (inc (+ (dec a) b))))
+
+(+ 3 1)
+(inc (+ 2 1))
+(inc (inc (+ 1 1)))
+
+
+(+ 3 1)
+(+ 3 (+ (- 1 3) 1))
+
+;; (linear) iterative process
+(define (+ a b)
+  (if (= a 0) b (+ (dec a) (inc b))))
+
+(+ 3 1)
+(+ 2 2)
+(+ 1 3)
+(+ 0 4)

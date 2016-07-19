@@ -1,0 +1,33 @@
+; 1.2.4
+; 指数計算
+
+; 線形再帰プロセスであり、θ(n)ステップと記憶域θ(n)を必要とする
+(define (expt b n)
+  (if (= n 0)
+      1
+      (* b (expt b (- n 1)))))
+
+; θ(n)ステップと記憶域θ(1)を必要とする
+(define (expt b n)
+  (expt-iter b n 1))
+(define (expt-iter b counter product)
+  (if (= counter 0)
+      product
+      (expt-iter b
+                 (- counter 1)
+                 (* b product))))
+
+
+; 指数関数は二乗を連続して用いることでより少ないステップで計算できる
+(define (fast-expt b n)
+  (cond ((= n 0) 1)
+        ((even? n) (square (fast-expt b (/ n 2))))
+        (else (* b (fast-expt b (- n 1))))))
+
+
+; 整数が偶数かをテストする述語はプリミティブな手続き, remainder を道いる。
+(define (even? n)
+  (= (remainder n 2) 0))
+
+; fast-exptにより展開されるプロセスはnの対数に従い記憶域とステップ数の両者が増加する。
+

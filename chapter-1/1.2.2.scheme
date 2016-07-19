@@ -18,3 +18,29 @@
   (if (= count 0)
       b
       (fib-iter (+ a b) a (- count 1))))
+
+
+;;; 例: 両替方法を数える
+
+(define (count-change amount) (cc amount 5))
+(define (cc amount kinds-of-coins)
+  (cond ((= amount 0) 1)
+        ((or (< amount 0) (= kinds-of-coins 0)) 0)
+        (else (+ (cc amount
+                     (- kinds-of-coins 1))
+                 (cc (- amount
+                        (first-denomination
+                         kinds-of-coins)))))))
+(define (first-denomination kinds-of-coins)
+  (cond ((= kinds-of-coins 1) 1)
+        ((= kinds-of-coins 2) 5)
+        ((= kinds-of-coins 3) 10)
+        ((= kinds-of-coins 4) 25)
+        ((= kinds-of-coins 5) 50)))
+
+;; (first-denomination手続きは利用可能な効果の種類の数を入力に取り、最初の種類の効果の額面を返す。
+;; ここでは効果は最大額面から最小への順に並んでいると仮定するが、どの順序でもうまくいく)
+
+(count-change 100)
+; 292
+

@@ -44,3 +44,21 @@ nはn自身が最小の約数である場合、かつその場合に限り素数
              (expmod base (- exp 1) m))
           m))))
 
+
+フェルマーテストは数aを1とn-1の間に、両端を含めてランダムに選んで実行し、
+nを法としたaのn乗の剰余がaに等しいかを調べる。
+乱数aはSchemeに基本の手続きrandomを使って選ぶ。
+
+(define (fermat-test n)
+  (define try-it a
+    (= (expmod a n n ) a))
+  (try-it (+ 1 (random (- n 1)))))
+
+
+次の手続きはパラメータで与えられた回数だけテストを実行する。
+テストにすべて成功すると結果として真を返し、そうでなければ偽を返す
+
+(define (fast-prime? n times)
+  (( = times 0) true
+   (fermer-test n) (fast-prime? n (- times 1))
+   (else false)))

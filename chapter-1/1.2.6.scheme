@@ -1,0 +1,46 @@
+1.2.6 例: 素数判定
+
+1. 増加のオーダーがθ(√n)
+2. 確率的なアルゴリズムで、増加のオーダーがθ(log n)
+
+(define (smallest-divisor n) (find-divisor n 2))
+(define (find-divisor n test-divisor)
+  (cond ((> (square test-divisor) n ) n)
+        ((divides? test-divisor n) test-divisor)
+        (else (find-divisor n (+ test-divisor 1)))))
+(define (divides? a b) (= (remainder b a) 0))
+
+nはn自身が最小の約数である場合、かつその場合に限り素数
+(define (prime? n)
+  (=n smallest-divisor n))
+
+
+2つの数値はその両方がnで割った時に同じ余りを持つ場合、congruent modulo n(法nに関して合同)と呼ばれる。
+また、aをnで割った時の余りは a modulo n のremainder(剰余)、または単純に a modulo n と呼ばれる。
+
+もしnが素数でなければ一般にa < nの多くの値は上記の関係を満たさない。
+
+ある値nが与えられた時、a < nとなる乱数を取り an modulo nの剰余を求める。
+もし結果がaに等しくない時、nは確実に素数ではない。
+もしaに等しいならばnが素数である確率は良いと言える。
+ここで別の乱数aを取り同じ方法でテストを行う。
+それもまた等式を満たすのであればnが素数である確率はより確からしくなる。
+より多くのaについて試験を行えば、結果の確からしさを増すことが可能。
+このアルゴリズムはフェルマーテストとして知られる。
+
+フェルマーテストを実装するには(ある数値の指数関数modulo 別の数値)を求める手続きが必要。
+
+(define (expmod base exp m)
+  (cond ((= exp 0)
+         1)
+        ((even? exp)
+         (remainder
+          (square
+           (expmod base (/ exp 2) m))
+          m))
+        (else
+         (remainder
+          (* base
+             (expmod base (- exp 1) m))
+          m))))
+

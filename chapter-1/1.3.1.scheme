@@ -1,0 +1,79 @@
+1.3.1 引数としての手続き
+
+aからbの整数の合計
+(define (sum-integers a b)
+  (if (a > b)
+      0
+      (+ a (sum-integers (a + 1) b))))
+
+
+与えられた範囲の立方の合計
+(define (cube x) (* x x x))
+(define (sum-cubes a b)
+  (if (a > b)
+      0
+      (+ (cube a)
+         (sum-cubes (+ a 1) b))))
+
+(define (pi-sum a b)
+  (if (> a b)
+      0
+      (+ (/ 1.0 (* a (+ a 2)))
+         (pi-sum (+ a 4) b))))
+
+
+これらはほとんどの部分が同一で、手続きの名前、和を求める項をaを用いて演算する関数、
+aの次の値を与える関数のみが異なる。
+
+
+(define (<name>) a b
+  (if (< a b)
+      0
+      (+ (<tern> a)
+         (<name> (<next> a) b))))
+
+このような共通パターンの存在は便利な抽象化が表に浮かび上がるのを待っていることを示す強力な証拠。
+実際に数学者は大昔にsummation of a aseries(級数の和)の抽象化を定義し"シグマ記法"を開発しました。
+
+ b
+ Σ f(n) = f(a) + ... + f(b)
+n=a
+
+シグマ記法の力は数学者に特定の合計のみについてではなく、
+総和のコンセプト自身について取り扱うことを可能にしました。
+
+例えば特定の吸収の和を求めることから独立して一般的な総和についての結果を形式化することを可能にした。
+
+
+手続き言語にて上記にて示された共通テンプレートを用いて、枠を形式パラメータに変換することで可能。
+
+(define (sum term a next b)
+  (if (> a b)
+      0
+      (+ (term a)
+         (sum term (next a) next b))))
+
+sumが引数として下限と上限のaとbを手続きtermとnextと一緒に取ることに注意。
+sumはこれから行うように好きな手続きを使用することが出来る。
+
+(define (inc n) (+ n 1))
+(define (sum-cubes a b)
+  (sum cube a inc b))
+
+termを求めるidentityプロシージャの助けを借りて、
+sumを用いてsum-integersの定義ができる。
+
+
+(define (identity x) x)
+(define (sum-integers a b)
+  (sum identity a inc b))
+
+
+
+(define (pi-sum) a b
+  (define (pi-term x)
+    (/ 1.0 (* x (+ x 2))))
+  (define (pi-next x)
+    (+ x 4))
+  (sum pi-term a pi-next b))
+

@@ -1,0 +1,16 @@
+Exercise 2.17: 与えられた(空でない)リストの最初の要素のみを持つリストを返す手続きlast-pairを定義せよ。
+(last-pair (list 23 72 149 34))
+(34)
+
+;; NG
+(define (list-pair list)
+  (define (list-pair-iter items)
+    (let ((last-item (cdr items)))
+      (if (= nil last-item)
+          last-item
+          (list-pair-iter (cdr items))))))
+
+(define (last-pair items)
+  (if (null? (cdr items))
+      items
+      (last-pair (cdr items))))

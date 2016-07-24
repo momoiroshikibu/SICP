@@ -110,7 +110,7 @@ n=0の場合、list-refはリストのcarを返す
 appendもまた再帰計画を用いて実装される。
 リストlist1とlist2をappendするためには以下のとおりに行う。
 
-もしlist1がカラリストであれば、結果は単にlist2
+もしlist1が空リストであれば、結果は単にlist2
 そうでない場合、list1のcdrとlist2をappendし、その結果の上にlist1のcarをconsする
 
 
@@ -118,3 +118,30 @@ appendもまた再帰計画を用いて実装される。
   (if (null? list1)
       list2
       (cons (car list1) (append (cdr list1) list2))))
+
+
+
+リストに渡るmap
+(define (scale-list items factor)
+  (if (null? items)
+      items
+      (cons (* (car items) factor)
+            (scale-list (cdr items)
+                        factor))))
+
+
+mapは引数として1引数の手続きとリストを取り、返り値としてその手続をリストの各要素に適用することで得られた結果のリストを返す。
+
+(define (map proc items)
+  (if (null? items)
+      nil
+      (cons (proc (car items))
+            (map proc proc (cdr items)))))
+
+
+これでmapを用いた新しいscale-listの定義を与えられる。
+
+(define (scale-list items factor)
+  (map (lambda (x) (* x factor))
+       items))
+

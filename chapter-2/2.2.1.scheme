@@ -50,3 +50,71 @@ carをリスト内の最初のアイテムを選択すると考えることも�
 (10 1 2 3 4)
 
 nilの値はペアの鎖を終了するために使用されるが、まったく要素がない列empty listとして考えることも出来る。
+
+
+リスト命令
+複数のペアを使用して要素の列をリストのように表現することは、慣習的なプログラミングテクニックである連続してリストをcdrで"縮小する"ことによりリストを操作するのと同時に生じる。
+例えば手続きlist-refは引数としてリストと数値nを取り、リストのn番目を返す。
+リストの要素を数えるのに0から始めるのが慣習。
+
+n=0の場合、list-refはリストのcarを返す
+そうでなければ、list-refはリストのcdrの(n-1)番目の項目を返す
+
+(define (list-ref items n)
+  (if (= n 0)
+      (car items)
+      (list-ref (cdr (items) (- n 1)))))
+
+(define squares (list 1 4 9 16 25))
+
+(list-ref squares 3)
+16
+
+時折、私たちはリスト全体をcdrで下ります。
+これを手助けするために、Schemeはプリミティブな手続きnull?を持っており、その引数が空リストであるかどうかを試験する。
+手続きlengthはリスト内の要素数を返すが、null?の仕様の典型的なパターンを説明する。
+
+
+(define (length items)
+  ((if (null? items)
+       0
+       (+ 1 (length (cdr items))))))
+
+(define odds (list 1 3 5 7))
+(length odds)
+
+手続きlengthは単純な最近計画を実装する。
+・任意のリストのlengthはリストのcdrのlengthに1を足した値
+これが底となるケースに達するまで繰り返し適用される。
+
+空リストのlengthは0
+
+またlengthは反復スタイルでも計算可能
+
+(define (length items)
+  (define (length-iter a count)
+    (if (null? a)
+        count
+        (length-iter (cdr a) (+ count 1))))
+  (length-iter items 0))
+
+もう一つの慣習的なプログラミングテクニックはcdrを繰り返し利用しリストを下る間に、答えのリストをconsで積み上げること。
+これは手続きappendにて利用され、appendは2つのリストを引数として取り、それらの要素を結合し、新しいリストを作る。
+
+(append squares odds)
+(1 4 9 16 25 1 3 5 7)
+
+(append odds squares)
+(1 3 5 7 1 4 9 16 25)
+
+appendもまた再帰計画を用いて実装される。
+リストlist1とlist2をappendするためには以下のとおりに行う。
+
+もしlist1がカラリストであれば、結果は単にlist2
+そうでない場合、list1のcdrとlist2をappendし、その結果の上にlist1のcarをconsする
+
+
+(define (append list1 list2)
+  (if (null? list1)
+      list2
+      (cons (car list1) (append (cdr list1) list2))))

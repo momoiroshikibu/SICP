@@ -1,0 +1,85 @@
+2.2.3 慣習的インターフェイスとしての列
+
+複合データを用いて働く場合、これまでデータ抽象化がどれだけプログラムの設計をデータ表現の詳細に陥らずに行えるか、
+また抽象化がどれだけ代替的な表現方法を試みる柔軟性を保つかについて強調してきました。
+この説ではもう一つの強力なデータ構造を用いる設計原則を紹介します。
+conventional interface(慣習的インターフェイス)の仕様です。
+複合データを扱う類似の操作を形式化する能力は決定的にデータ構造を扱うスタイルに依存する。
+
+(define (sum-odd-squares tree)
+  (cond ((null? tree) 0)
+        ((not (pair? tree))
+         (if (odd? tree) (square tree) 0))
+        (else (+ (sum-odd-squares (car tree))
+                 (sum-odd-squares (cdr tree))))))
+
+(define (even-fibs n)
+  (define (next k)
+    (if (> k n)
+        nil
+        (let ((f (fib k)))
+          (if (even? f)
+              (cons f (next (+ k 1)))
+              (next (+ k 1))))))
+  (next 0))
+
+これらの2つの手続きは構造的にとても異なっているという事実にもかかわらず、2つの計算のより抽象的な記述は大きな類似性を明らかにする。
+
+最初のプログラム
+・木の葉を列挙する
+・フィルタを通して奇数のみを選ぶ
+・選択された数の2乗をもトメル
+・初期値0にて+を用いて集積する
+
+2つ目のプログラム
+・0からnを列挙する
+・各整数のフィボナッチ数を求める
+・フィルタを通して偶数を選択する
+初期値は空リストにてconsを用いて結果を集積する
+
+
+
+2つの手続きは演算を異なる方法で分解し、列挙をプログラム全体に広げてmap, filter, accumulationに混ぜました。
+もしプログラムを手続き中に信号処理構造の宣言を作るように構成できるのであれば結果としてのコード概念の明快さを増すことが出来るでしょう。
+
+
+列命令
+プログラムを体系化し信号伝達構造をより明確に反映する鍵はある段階の処理から次へと流れる信号に集中すること。
+もしこれらの信号をリストとして表現するなら、各段階の処理をリスト操作を用いて実装できる。
+
+(map square (list 1 2 3 4 5))
+(1 4 9 16 25)
+
+列をフィルタリングして与えられた述語を満足する要素のみを選択する
+(define (filter predicate sequence)
+  (cond ((null? sequence) nil)
+        ((predicate (car sequence))
+         (cons (car sequence)
+               (filter predicate (cdr sequence))))
+        (else (filter predicate (cdr sequence)))))
+
+(filter odd? (list 1 2 3 4 5))
+
+
+集積
+(define (accumulate op initial sequence)
+  (if (null? sequence)
+      initial
+      (op (car sequence)
+          (accumulate op initial (cdr sequence)))))
+(accumulate + 0 (list 1 2 3 4 5))
+15
+(accumulate * 0 (list 1 2 3 4 5))
+120
+(accumulate cons nil (list 1 2 3 4 5))
+(1 2 3 4 5)
+
+
+要素の列を列挙する
+(define (enumrate-interval low high)
+  (if (> low high)
+      nil
+      (cons low (enumrate-interval (+ low 1) high))))
+(enumrate-interval 2 7)
+(2 3 4 5 6 7)
+

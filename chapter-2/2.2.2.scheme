@@ -1,0 +1,49 @@
+2.2.2 階層構造
+
+リストを用いた列の表現は要素が列自身である列を表現することを自然に一般化する。
+例えば以下のように構築されたオブジェクト((1 2) 3 4)を
+
+(cons (list 1 2) (list 3 4))
+
+最初の項目はそれ自身がリスト(1 2)である。
+3つの項目のリストであると見なすことが出来る。
+
+要素それ自身が列であるもう1つの考え方は木としての考え方。
+列の要素は木の枝であり、それ自身が列であるelements(複数の要素)は部分木である。
+
+再帰は木構造を扱うのに自然なツール。
+よく木に対する操作を枝に対する操作へと還元でき、それは順に枝の枝への操作へと還元され、
+木の葉にたどり着くまで繰り返される。
+
+(define x (cons (list 1 2) (list 3 4)))
+(length x)
+3
+(count-leaves x)
+(list x x)
+
+(((1 2) 3 4) ((1 2) 3 4))
+(length (list x x))
+
+(count-leaves (list x x))
+
+count-leavesを実装するにはlengthを求める再帰計画を思い出す。
+・リストxのlengthはxのcdrのlengthに1を足したもの
+・空リストのlengthは0
+
+count-leavesも同様。空リストの値は同じで
+・空リストのcount-leavesは0
+
+しかし集約ステップにおいて、リストのcarを取り除く時、carはそれ自身が後で数えねばならない木である可能性があることを計算に入れなければならない。従って適切な集約ステップは
+
+・木xのcount-leavesはxのcarのcount-leavesとxのcdrのcount-leavesの和
+
+最終的にcarを取ることにより実際の葉に届くので別の規範を必要とする。
+
+葉のcount-leavesは1
+
+木に対する再帰手続きを書くのを助けるために、Schemeはプリミティブな手続きpair?を提供する。
+(define (count-leaves x)
+  (cond ((null? x) 0)
+        ((not (pair? x)) 1)
+        (else (+ (count-leaves (car x))
+                 (count-leaves (cdr x))))))

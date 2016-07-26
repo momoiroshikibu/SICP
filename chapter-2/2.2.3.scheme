@@ -139,3 +139,54 @@ even-fibsに対して0からnの整数を列挙し、これらの整数のそれ
 ここではリストとして実装された列は処理モジュールを接続することを可能にする慣習的インタフェースとしての役割を行う。
 その上、私達が構造を列として統一的に表現した時、私たちはプログラムの中のデータ構造依存性を少ない数の列操作へと局所化した。
 これらを変更することで、プログラム設計を全体的に保存したまま列の代替的表現方法を試みることができる。
+
+
+入れ子のmap
+列のパラダイムを拡張子、一般的に入れ子ループを用いて表現される多くの演算を含めてみる。
+正の整数nを与えられた時、異なる正の整数iとjのすべての順序付けペアを見つけよ。
+条件として1 < j < i < nかつi + jは素数である。
+
+この演算を体系化する自然な方法は全ての順序づけられたn以下の正の整数のペアを生成し、フィルタを通してその合計が素数であるもののみを選択し、フィルタを通った各ペア(i, j)に対し、三つ組(i,j,i+j)を生成すること。
+
+ここでペアの列を生成する方法を挙げる。
+全ての整数 i< nに対し、整数 j < iを列挙し、全てのそのようなiとjに対し、ペア(i,j)を生成する。
+列操作を用いて列(enumerate-interval 1 n)にそってmapを行う。
+この列の各iに対し、列(enumrate-interval 1 (- i 1))にそってmapを行う。
+この後者の列のjに対し、ペア(list i j)を生成する。
+これが全てのiに対するペアの列を与える。
+全てのiに対する全ての列を(appendを用いて集積することにより)接続することで要求されたペアの列を生成する。
+
+(accumulate
+ append nil (map (lambda (i)
+                   (map (lambda (j) (list i j))
+                        (enumerate-intrerval i (- i 1))))
+                 (enumerate-interval 1 n)))
+
+mapと集積の組み合わせをappendと共に用いるのはこの種のプログラムにおいてとても一般的。
+これを分離したプログラムとして分ける。
+
+(define (flatmap proc seq)
+  (accumulate append nil (map proc seq)))
+
+これでこのペアの列をフィルタにかけ、和が素数であるものを探す。
+フィルタの述語が各要素に対して呼ばれる。その引数はペアであり、ペアから整数を抽出せねばならない。
+従って、列の各要素に適用される述語は以下のようになる。
+
+(define (prime-sum? pair)
+  (prime? (+ (car pair) (cadr pair))))
+
+最後に、フィルタを通ったペア全体に以下の手続きを用いてmapをかけた結果の列を生成する。
+
+(define (make-pair-sum pair)
+  (list (car pair) (cadr pair) (+ (car pair) (cadr-pair))))
+
+(define (prime-sum-pairs n)
+  (map make-pair-sum
+       (filter prime-sum?
+               (flatmap
+                (lambda (i)
+                  (map (lambda (j) (list i j))
+                       (enumerate-interval 1 (- i 1))))
+                (enumerate-interval 1 n)))))
+
+

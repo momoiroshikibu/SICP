@@ -83,3 +83,59 @@ conventional interface(慣習的インターフェイス)の仕様です。
 (enumrate-interval 2 7)
 (2 3 4 5 6 7)
 
+
+木の葉を列挙する
+(define (enumrate-tree tree)
+  (cond ((null? tree) nil)
+        ((not (pair? tree)) (list tree))
+        (else (append (enumrate-tree (car tree))
+                      (enumrate-tree (cdr tree))))))
+
+(enumrate-tree (list 1 (list 2 (list 3 4)) 5))
+
+これでsum-odd-squaresとeven-fibsを信号伝達図のように再形式化することができる。
+
+(define (sum-odd-squares tree)
+  (accumulate
+   + 0 (map square (filter odd? (enumrate-tree tree)))))
+
+even-fibsに対して0からnの整数を列挙し、これらの整数のそれぞれに対するフィボナッチ数を生成し、
+結果列をフィルタにかけ偶数の要素のみを保持し、結果をリストの中に集積する。
+
+(define (even-fibs n)
+  (accumulate
+   cons
+   nil
+   (filter even? (map fib (enumrate-interval 0 n)))))
+
+
+列操作としての伝達プログラムの価値はこれがモジュラ形式のプログラムデザインを行うことを手助けしてくれることにある。
+モジュラであるとは相対的に独立した部品を組み立てることで構築される設計。
+柔軟な形でコンポーネントを接続するための慣習的なインタフェースと共に、兵十ンコンポーネントのライブラリを提供することで、
+モジュラ設計を推進することができる。
+
+
+(define (list-fib-squares n)
+  (accumulate
+   cons
+   nil
+   (map square (map fib (enumrate-interval 0 n)))))
+(list-fib-squares 10)
+
+部品を再配置し、列の奇数の二乗を計算するのに使うことも可能。
+
+(define (product-of-squares-of-odd-elements sequence)
+  (accumulate * 1 (map square (filter odd? sequence))))
+
+慣習的なデータ処理アプリケーションを列操作を用いて説明することも出来ます。
+個人の記録の列があるとして、最も高給なプログラマの給与を見つけたいとします。
+記録の給与を返すセレクタsalaryと記録がプログラマのものであるかを判定するprogrammer?があるとします。
+
+(define (salary-of-highest-paid-programmer raecords)
+  (accumulate
+   max 0 (map salary (filter programmer? records))))
+
+
+ここではリストとして実装された列は処理モジュールを接続することを可能にする慣習的インタフェースとしての役割を行う。
+その上、私達が構造を列として統一的に表現した時、私たちはプログラムの中のデータ構造依存性を少ない数の列操作へと局所化した。
+これらを変更することで、プログラム設計を全体的に保存したまま列の代替的表現方法を試みることができる。

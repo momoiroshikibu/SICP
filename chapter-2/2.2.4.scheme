@@ -8,3 +8,49 @@
 従ってそれをより複雑なペインタを作るための要素として使用できる。
 consを用いてリスト構造を構築するのと動揺に、結合手段の下のデータの閉包はほんのわずかな命令を用いて複雑な構造を作成する能力にとって重大。
 
+identity right-split n-1
+         right-split n-1
+
+
+
+up-splitn-1 up-split n-1 corner-split n-1
+right-splitn-1
+right-splitn-1
+identity
+
+(define (flipped-pairs painter)
+  (let ((painter2 (beside painter (flip-vert painter))))
+    (below painter2 painter2)))
+
+(define wave4 (flipped-pairs wave))
+
+また再帰命令を定義することも可能。
+ペインタを分割し、右へ向けて枝分かれする。
+
+(define (right-split painter n)
+  (if (= n 0)
+      painter
+      (let ((smaller (right-split painter (- n 1))))
+        (beside painter (below smaller smaller)))))
+
+右に向けてと同じように上方向にも枝分かれすることでバランスの取れたパターンを生成することも可能。
+
+(define (corner-split painter n)
+  (if (= n 0)
+      painter
+      (let ((up (up-split painter (- n 1)))
+            (right (right-split painter (- n 1))))
+        (let ((top-left (beside up up))
+              (bottom-right (below right right))
+              (corner (corner-split painter (- n 1))))
+          (beside (below painter top-left)
+                  (below bottom-right corner))))))
+
+corner-splitの4つのコピーを置くことでsquare-limitと呼ばれるパターンを獲得することができ、
+waveとrogersに対する適用が示される。
+
+(define (square-limit painter n)
+  (let ((quarter (corner-split painter n)))
+    (let ((half (beside (slip-horiz quarter) quarter)))
+      (below (flip-vert half) half))))
+

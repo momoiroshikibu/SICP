@@ -190,3 +190,31 @@ mapと集積の組み合わせをappendと共に用いるのはこの種のプ�
                 (enumerate-interval 1 n)))))
 
 
+入れ子のmapは区間を列挙するもの以外に列に対しても便利。
+ある集合Sの全ての順列を生成したいとする。つまり集合内の項目の全ての並べ方。
+例えば{1,2,3}の順列は{1,2,3}, {1,3,2}, {2,1,3}...
+ここに集合Sの順列を静止するための計画を挙げる。
+Sの中の全ての項目xに対し再帰的にS-xの順列の列を生成し、次にxをそれぞれの先頭に置く。
+これはSの全てのxに対しSのxではじまる順列の列を生成する。
+これらの全てのxに対する列を接続するとSの全ての順列が与えられる。
+
+(define (_permutations s)
+  (if (null? s)  ; 集合は空か？
+      (list nil) ; 空集合を持つ列
+      (flatmap (lambda (x)
+                 (map (lambda (p) (cons x p))
+                      (permutations (remove x s))))
+               s)))
+
+
+(list nil)
+これは1要素の列であり、要素無しの集合を表す。
+
+remove
+与えられた式から与えられた項目以外の全ての要素を返す。
+
+(define (remove item sequence)
+  (filter (lambda (x) (not (= x item)))
+          sequence))
+
+

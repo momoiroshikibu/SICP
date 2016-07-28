@@ -1,0 +1,31 @@
+2.3.2 例: 記号微分
+
+(variable? e)          eは変数であるか？
+(same-variable? v1 v2) v1とv2は同じ変数であるか？
+(sum? e)               eは和か？
+(addend e)             和eの加数
+(augend e)             和eの被加数
+(make-sum a1 a2)       a1とa2の和
+(product? e)           eは積か？
+(multiplier e)         積eの乗数
+(multiplicand e)       積eの被乗数
+(make-product m1 m2)   m1とm2の積を構築する
+
+これらと数値であるかを判断するプリミティブな述語number?を用いて、以下の手続きのように微分のルールを表現できる。
+
+(define (deriv exp var)
+  (cond ((number? exp) 0)
+        ((variable? exp) (if (same-variable? exp var) 1 0))
+        ((sum? exp) (make-sum (deriv (addend exp) var)
+                              (deriv (augend exp) var)))
+        ((product? exp)
+         (make-sum
+          (make-product (multiplier exp)
+                        (deriv (multiplicant exp) var))
+          (make-product (deriv (multiplier exp) var)
+                        (multiplicand exp))))
+        (else
+         (error "unknown expression type: DERIV" exp))))
+
+
+

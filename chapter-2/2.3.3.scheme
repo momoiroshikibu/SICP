@@ -25,3 +25,47 @@ intersection-set
 これらの命令を実装するどんな表現を設計することも自由。
 
 
+順序なしリストとしての集合
+集合を表現するための1つの方法は、どの要素も一度より多くは現れない要素のリストとする。
+空集合は空リストとして表現される。
+この表現ではelement-of-set?はmemqと似ている。
+eq?の代わりにequal?を用いているので集合要素はシンボルである必要はない。
+
+(define (element-of-set? x set)
+  (cond ((null? set) false)
+        ((equal? x (car set)) true)
+        (else (element-of-set? x (cdr set)))))
+
+これを用いてadjoin-setを×。
+adjoinされるオブジェクトが既に集合に存在する場合、単に元の集合を返す。
+そうでなければconsを用いてオブジェクトを集合を表すリストに追加する。
+
+(define (adjoin-set x set)
+  (if (element-of-set? x set)
+      set
+      (cons x set)))
+
+intersection-setに対して再帰の戦略を使用できる。
+もしset2とset1のcdrの共通集合の求める方法がわかれば、これにset1のcarを含めるかどうか決定することのみが必要。
+
+しかしこれは(car set1)がset2にも存在するかに依存する。
+
+(define (intersection-set set1 set2)
+  (cond ((or (null? set1) (null? set2)) '())
+        ((element-of-set? (car set1) set2)
+         (cons (car set1)
+               (intersection-set (cdr set1) set2))
+         (else (intersection-set (cdr set1) set2)))))
+
+表現の設計において、私達が考慮しなければならない問題の1つは効率。
+集合操作により必要とされるステップ数を考えてください。
+それら全てがelement-of-set?を使用するので、この命令のスピードは総じて集合実装の効率上に主要な影響を与える。
+おっこで、あるオブジェクトが集合の要素であるかをチェックするために、element-of-set?は集合全体をスキャンしなければならないかもしれない。
+それ故にもしその集合がn要素を持つ場合、element-of-set?は最大nステップかかるかもしれない。
+従って必要とされるステップ数は、θ(n)で増加する。
+adjoin-setにより必要とされるステップ数は、それがこの命令を用いるので、これもまたθ(n)で増加する。
+intersection-setは、set1の各要素に対しelement-of-set?のチェックを行うため、必要とされるステップ数は
+関係する集合のサイズの積か、またはサイズnの2つの集合に対しθ(n^2)で増加する。
+union-setに対しても同じことが言える。
+
+

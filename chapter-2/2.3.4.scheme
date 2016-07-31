@@ -26,3 +26,51 @@
 またどの2つのノードがマージされるのかの順序も決定しない。
 (つまり、どれが右になり、どれが左になるかはわからない)
 
+
+ハフマン木の表現
+ハフマン木を用いてメッセージの符号化・復号化を行い、かつ上で概説したアルゴリズムにもとづきハフマン木を作成します。
+気はどのように表現されるかの議論から始める。
+
+この母シンボルleaf、葉に対するシンボル、そして重みから構成されるリストにて表現される。
+
+(define (make-leaf symbol weight)
+  (list 'leaf symbol weight))
+
+(define (leaf? object)
+  (eq? (car object) 'leaf))
+
+(define (symbol-leaf x) (cadr x))
+
+(define (weight-leaf x) (caddr x))
+
+一般的な木は左側の枝、右側の枝、シンボルの集合、そして重みのリストになる。
+シンボルの集合は単純にシンボルのリストとなり、より洗練された集合の表現を用いない。
+2つのノードをマージして木を作る時、木の重みを各ノードの重みの和として取得し、シンボルの集合は各ノードのシンボルの集合の和集合とする。
+シンボルの集合はリストとして表現されているので和集合はappend手続きを用いて形成することができる。
+
+(define (make-code-tree left right)
+  (list left right (append (symbols left)
+                           (symnbols right))
+        (+ (weight left)
+           (weight right))))
+
+もしこのように木を作るのなら、以下のようなセレクタを持つことになる。
+
+(define (left-branch tree) (car tree))
+
+(define (right-branch tree) (cadr tree))
+
+(define (symbols tree)
+  (if (leaf? tree)
+      (list (symbol-leaf tree))
+      (caddr tree)))
+
+(define (weight tree)
+  (if (leaf? tree)
+      (weight-leaf tree)
+      (caddr tree)))
+
+
+手続きsymbolsとweightはそれらが葉と一般的な木のどちらと共に呼ばれたかにより少々異なったことをしなければならない。
+これらはgeneric procedures(ジェネリック手続き: に種類以上のデータを扱える手続き)の簡単なサンプル。
+

@@ -74,3 +74,30 @@
 手続きsymbolsとweightはそれらが葉と一般的な木のどちらと共に呼ばれたかにより少々異なったことをしなければならない。
 これらはgeneric procedures(ジェネリック手続き: に種類以上のデータを扱える手続き)の簡単なサンプル。
 
+
+復号化手続き
+以下の手続きは復号化アルゴリズムを実装する。
+0と1のリストをハフマン木と共に引数として取る。
+
+(define (decode bits tree)
+  (define (decode-1 bits current-branch)
+    (if (null? bits)
+        '()
+        (let ((next-branch
+               (choose-branch
+                (car bits) current-branch)))
+          (if (leaf? next-branch)
+              (cons (symbol-leaf next-branch)
+                    (decode-1 (cdr bits) tree))
+              (decode-1 (cdr bits) next-branch)))))
+  (decode-1 bits tree))
+
+(define (choose-branch bit branch)
+  (cond ((= bit 0) (left-branch branch))
+        ((= bit 1) (right-branch branch))
+        (else (error "bad bit: CHOOSE-BRANCH" bit))))
+
+手続きdecode-1は2つの引数を取る。
+残りのビット列のリストと木における現在の位置。
+木を下り続けるためのリストの中の次のビットが0であるか1であるかに従って左、右の枝を選択する。
+葉にたどり着いた時、その葉のシンボルをメッセージの次のシンボルとして、残りのメッセージを木の根から再開して複合した結果にconsすることで返す。

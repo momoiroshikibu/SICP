@@ -39,3 +39,33 @@ make-from-real-imagは指定された実数部と虚数部を持つ複素数を�
 
 複素数パッケージを完了させるためには表現を選択し、コンストラクタとセレクタをプリミティブな数値とリスト構造を用いて実装しなければならない。
 これを行うために2つ明らかな方法があります。直行形式の複素数はペア(実数部、虚数部)として表現し、また極形式はペア(大きさ、角度)にて表現します。どちらを選択すべきでしょうか。
+
+異なる選択を具体的にするためにAとBがいると想像してください。
+二人は複素数システムのための表現を独立して設計します。
+Aは複素数を直行形式にて表現することを選択しました。この選択により現状として複素数を与えられた実数部と虚数部から構築するため、
+実数部と虚数部を複素数から選択するのは直接的。大きさと角度を求めるためには、または複素数を与えられた大きさと角度から構築するために彼は三角法の関係を用いた。
+
+(define (real-part z) (car z))
+(define (imag-part z) (cdr z))
+(define (magnitude z)
+  (sqrt (+ (square (real-part z))
+           (square (imag-part z)))))
+(define (angle z)
+  (atan (imag-part z) (real-part z)))
+(define (make-from-real-imag x y) (cons x y))
+(define (make-from-mag-ang r a)
+  (cons (* r (cos a)) (* r (sin a))))
+
+一方、Bは複素数を極形式にて表現することを選択した。大きさと角度を選択するのは直接的。
+しかし実数部と虚数初を得るためには三角法の関係を用いねばならない。
+(define (real-part z) (* (magnitude z) (cos (angle z))))
+(define (imag-part z) (* (magnitude z) (sin (angle z))))
+(define (magnitude z) (car z))
+(define (angle z) (cdr z))
+(define (make-from-real-imag x y)
+  (cons (sqrt (+ (square x) (square y)))
+        (atan y x)))
+
+(define (make-from-mag-ang r a) (cons r a))
+
+データ抽象化の規律はadd-complex, sub-complex, mul-complex, div-complexの同じ実装がAとBの表現のどちらに対してもうまくいくことを保証する。

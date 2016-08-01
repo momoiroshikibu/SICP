@@ -1,0 +1,41 @@
+2.4.1 複素数のための表現
+
+ジェネリックな命令を用いる単純な代わりに非現実的なプログラムの例として複素数上で数値演算命令を実行するシステムを開発します。
+順序有りペアとしての服装数に対する2つのもっともらしい表現について議論することからはじめる。
+直行形式(実数部と虚数部)と極形式(大きさと角度)です。
+分数と同様に、複素数は自然に順序有りペアとして表現される。
+複素数の集合は2つの直行する軸を持つ二次元空間として考えることが出来ます。
+この視点から複素数z = xiy(ここでi^2 = -1)はその平面中の実数座標がxかつ虚数座標がyの点として考えることが可能。
+複素数の和はこの表現において座標の和と還元できる。
+
+複素数上の命令が4つのセレクタを使用して実装されると仮定する。
+real-part, imag-part, mugnitude, angle
+また複素数を構築する2つの手続きを持っているとも想定する。
+
+make-from-real-imagは指定された実数部と虚数部を持つ複素数を返し、make-from-mag-angは指定された大きさと角度を持つ複素数を返す。
+
+(make-from-real-imag (real-part z) (imag-part z))
+(make-from-mag-ang (magnitude z) (angle z))
+
+この両方がzに等しい複素数を生成する。
+これらのコンストラクタとセレクタを用いて、コンストラクタとセレクタにて指定された抽象データを用いて複素数上での数値演算を実装可能。
+前述の式にて示されたように、複素数の和と差は実数部と虚数部を用いることで、また複素数の積と商は大きさと角度を用いることで実装できる。
+
+(define (add-complex z1 z2)
+  (make-from-real-imag (+ (real-part z1) (real-part z2))
+                       (+ (imag-part z1) (imag-part z2))))
+
+(define (sub-complex z1 z2)
+  (make-from-real-imag (- (real-part z1) (real-part z2))
+                       (- (imag-part z1) (imag-part z2))))
+
+(define (mul-complex z1 z2)
+  (makd-from-mag-ang (* (magnitude z1) (magnitude z2))
+                      (+ (angle z1) (angle z2))))
+
+(define (div-complex z1 z2)
+  (makd-from-mag-ang (/ (magnitude z1) (magnitude z2))
+                     (- (angle z1) (angle z2))))
+
+複素数パッケージを完了させるためには表現を選択し、コンストラクタとセレクタをプリミティブな数値とリスト構造を用いて実装しなければならない。
+これを行うために2つ明らかな方法があります。直行形式の複素数はペア(実数部、虚数部)として表現し、また極形式はペア(大きさ、角度)にて表現します。どちらを選択すべきでしょうか。

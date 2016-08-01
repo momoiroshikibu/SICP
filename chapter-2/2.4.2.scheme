@@ -1,0 +1,50 @@
+2.4.2 タグ付きデータ
+データ抽象化の考え方の一つは"最小責務の原則"の適用として。
+セレクタとコンストラクタにより形成された抽象化バリアが最後の可能な旬ん感にデータオブジェクトに対する具体的な表現の選択に従うことを可能にしている。
+従ってシステム設計において最高の柔軟性を維持することができる。
+最小責務の則はさらにもっと高みへと到達することができる。
+もし私達が望めば、セレクタとコンストラクタを設計した"後"にさえ表現の多義性を維持することが可能。
+そしてAとBの表現の両方の使用を選択できる。
+もし両方の表現が単一のシステムに含まれる場合、極形式のデータを直行形式のデータから識別するための何らかの方法が必要になります。
+そうでなければ、例えばペア(3, 4)の大きさを求めるように尋ねられた場合に(数値を直行形式だと考えて)5と答えるべきか(極形式であると考えて)3と答えるべきなのかわからない。
+この識別を直接的な方法で達成するためにtype tag(タイプタグ)-rectangularまたはpolarのシンボルを書く複素数の部分として導入する。
+すると複素数を操作せねばならない時にタグを用いてどちらのセレクタを適用するべきか決定することができる。
+
+タグ付きデータを操作するためにデータオブジェクトからタグと実際のコンテンツを抽出する手続きtype-tagとcontentsを持つと想定する。
+またタグとコンテンツを取りタグ付きデータオブジェクトを生成する手続きattach-tagを仮定する。
+これを実装する直接的な方法は普通のリスト構造を用いること。
+
+(define (attach-tag type-tag contents)
+  (cons type-tag contents))
+(define (type-tag datum)
+  (if (pair? datum)
+      (car datum)
+      (error "Bad tagged datum: TYPE-TAG" datum)))
+(define (contents datum)
+  (if (pair? datum)
+      (cdr datum)
+      (error "Bad tagged datum: CONTENTS" datum)))
+
+これらの手続きを用いて述語rectangular?とpolar?を定義し、直行形式と極形式のそれぞれを認識することができます。
+
+(define (rectangular? z) (eq? (type-tag z) 'rectangular))
+(define (polar? z) (eq? (type-tag z) 'polar))
+
+タイプタグを用いてAとBはこれで彼らのコードを変更し2つの異なる表現が同じシステム内にて共存させることができるようになりました。
+AとBは手続きの名前が衝突しないように確認しなければならない。
+これを行う1つの方法としてAは彼の各表現手続きに接頭辞rectangularを追加し、Bはpolarを付け加える。
+
+(define (real-part-rectangular z) (car z))
+
+(define (real-part-polar z) (* (magnitude-poar z)(cos (angle-polar z))))
+
+各ジェネリックなセレクタは引数のタグをチェックし、そのタイプのデータを扱うのに適切な手続きを呼び出すように実装される。
+例として、複素数の実数部を得る場合、real-partはタグを確かめAのreal-part-rectangularかBのreal-part-polarのどちらを使うのか決定する。
+
+(define (real-part z)
+  (cons ((rectangular? z)
+         (real-part-rectangular (contents z)))
+        ((polar? z)
+         (imag-part-pol (contents z)))
+        (elsae (error "Unknown type: REAL-PART" z))))
+

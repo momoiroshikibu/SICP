@@ -30,3 +30,75 @@
 これを行えば、システムに対して新しい表現パッケージの追加するために既存の手続きに何の変更を行う必要もありません。
 必要なのは表に新しい項目を追加すること。
 
+この計画を実装するために、2つの手続きputとgetを命令と型のテーブルを操作するために持っていると仮定します。
+
+(put <op> <type> <item>)は<item>をテーブルに挿入し、<op>と<type>で索引付けられる。
+
+(get <op> <type>)は<op>, <type>の項目をテーブルから探し、見つかった項目を返す。
+もし見つからない場合にはgetはfalseを返す。
+
+(define (install-rectangular-package)
+  ;; internal procedures
+  (define (real-part z) (car z))
+  (define (imag-part z) (cdr z))
+  (define (make-from-real-imag x y) (cons x y))
+  (define (magnitude z)
+    (sqrt (+ (square (real-part z))
+             (square (imag-part z)))))
+  (define (angle z)
+    (atan (imag-part z) (real-part z)))
+  (define (make-from-mag-ang r a)
+    (cons (* r (cos a)) (* r (sin a))))
+
+  ;; interface to the rest of the system
+  (define (tag x) (attach-tag 'rectangular x))
+  (put 'real-part '(rectangular) real-part)
+  (put 'imag-part '(rectangular) imag-part)
+  (put 'magnitude '(rectangular) magnitude)
+  (put 'angle '(rectangular) angle)
+  (put 'make-from-real-imag 'rectangular
+       (lambda (x y) (tag (make-from-real-imag x y))))
+  (put 'make-from-mag-ang 'rectangular
+       (lambda (r a) (tag (make-from-mag-ang r a))))
+  'done)
+
+
+この中の内部手続はSection2.4.1にて分離を行った時に彼が書いたものと同じ手続きであることに注意。
+これらをシステムの残りに接続するためにはまったく変更がありません。
+さらにこれらの手続きの定義はインストールを行う手続きの内部であるため、パッケージ外部の他の手続きに対して
+名前の衝突が起こることを全く心配する必要がない。
+これらをシステムの残りに対し接続するために、real-part手続きを命令名real-partと型(rectangular)の元にインストールした。
+そして他のセレクタに対しても同様に行った。
+このインタフェースはまた外部システムにより利用されるコンストラクタも定義する。
+ただしタグを不可することが異なる。
+
+
+複素数演算のセレクタはapply-genericと呼ばれる普遍的な"operation"手続きを用いてテーブルにアクセスする。
+これはジェネリックな命令を引き数に対して適用する。
+apply-genericは命令の名前と引き数の型の下に表を調べ結果としての手続きがあれば適用する。
+(define (apply-generic op . args)
+  (let ((type-tags (map type-tag args)))
+    (let ((proc (get op type-tags)))
+      (if proc
+          (apply proc (map contents args))
+          (error
+           "No method for these types: APPLY-GENERIC"
+           (list op type-tags))))))
+
+apply-genericを用いることで、以下のようにセレクタを定義できる。
+
+(define (real-part z) (apply-generic 'real-part z))
+(define (imag-part z) (apply-generic 'imag-part z))
+(define (magnitude z) (apply-generic 'magnitude z))
+(define (angle z) (apply-generic 'angle z))
+
+もし新しい表現がシステムに追加されたとしてもこれらが全く変更されないことに注意。
+またテーブルからコンストラクタを抽出することもできる。
+コンストラクタはパッケージ外部プログラムにより使用でき、実数部と虚数部が大きさと角度から複素数を作る。
+
+(define (make-from-real-imag x y)
+  ((get 'make-from-real-imag 'rectangular) x y))
+(define (make-from-mag-ang r a)
+  ((get 'make-from-mag-ang 'polar r a)))
+
+

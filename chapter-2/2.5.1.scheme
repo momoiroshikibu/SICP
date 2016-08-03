@@ -1,0 +1,57 @@
+2.5.1 ジェネリックな数値演算命令
+
+ジェネリックな数値演算命令の設計タスクはジェネリックな複素数命令を設計するのと同様。
+たとえば、
+実数上での通常の加算のプリミティブ+
+分数上のadd-rat
+複素数上のadd-complexのように振る舞うジェネリックな加算手続きaddを持ちたいとする。
+addと他のジェネリックな数値演算命令を複素数に対するジェネリックなセレクタを実装するのに用いたのと同じ戦略に従うことで実装することが可能。
+全ての種類の数値にタイプタグをアタッチすることでジェネリック手続きにその引数のデータタイプに従って適切なパッケージを呼び出す理由とする。
+ジェネリックな数値演算は以下のように定義される。
+
+(define (add x y) (apply-generic 'add x y))
+(define (sub x y) (apply-generic 'sub x y))
+(define (mul x y) (apply-generic 'mul x y))
+(define (div x y) (apply-generic 'div x y))
+
+ordinary(通常の)数値を扱うためのパッケージをインストールすることで始める。
+これは私達の言語のプリミティブな数値のこと。
+これらにシンボルscheme-numberでタグを付ける。
+このパッケージ内の数値演算命令はプリミティブな数値演算手続き。
+(そのためタグの無い数値を扱うために拡張手続きを定義する必要はない)
+これらの命令はそれぞれが2つの引数を取るためリスト(scheme-number scheme-number)を鍵にしてテーブルにインストールされる。
+
+(define (install-scheme-number-package)
+  (define (tag x) (attach-tag 'scheme-number x))
+  (put 'add '(scheme-number scheme-number)
+       (lambda (x y) (tag (+ x y))))
+  (put 'sub '(scheme-number scheme-number)
+       (lambda (x y) (tag (- x y))))
+  (put ('mul '(scheme-number scheme-number))
+       (lambda (x y) (tag (* x y))))
+  (put ('div) '(scheme-number scheme-number)
+       (lambda (x y) (tag (/ x y))))
+  (put 'make 'scheme-number '(lambda (x) (tag x)))
+  'done)
+
+
+scheme-numberパッケージのユーザーは(タグ付きの)普通の数値を手続きを用いて作成する。
+
+(define (make-scheme-number n)
+  ((get 'make 'scheme-number) n))
+
+さてこのジェネリック数値演算システムのフレームワークが準備出来たので新しい種類の数値も容易に含めることができる。
+ここに分数演算を実行するパッケージがある。
+付加的であることの利点として分数コードをパッケージ内の内部手続として変更なしに利用できることに注目。
+
+(define (install-rational-package)
+  ;; internal procedures
+  (define (number x) (car x))
+  (define (denom x) (cdr x))
+  (define (make-rat n d)
+    (let ((g (gcd n d)))
+      (cons (/ n g) (/ d g))))
+  (define (add-rat x y)
+    (make-rat (+ (* (numer x) (denom y))
+                 (+ (numer y) (denom x)))
+              (* denom x) (denom y))))

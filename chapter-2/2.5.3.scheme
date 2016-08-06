@@ -106,21 +106,48 @@ polyからそれらの部分を抽出するセレクタvariableとterm-listと�
                    (add-terms (rest-terms L1)
                               (rest-terms L2))))))))
 
+項リストの表現
+項リストは実際には項の次数をキーにした係数の集合。従って、任意の集合表現の手法がこのタスクに適用可能。
+add-termsとmul-termsは常に高い次元から低い次元へと連続して項リストを常にアクセスする。
+従って何かの順序月リスト表現を用いる。
+項リストを表現するリストをどのように構造化すべきか。
+1つの考慮点は操作しようとする多項式の濃度。
+多項式は多くの次数に関して0でない係数を持つ場合dense(密)と呼ばれる。
+もし多くの0の項を保つ場合にはsparse(疎)と呼ばれる。
+
+密多項式
+x^5 + 2x^4 + 3x^2 - 2x - 5
+
+疎多項式
+x^100 + 2x^2 + 1
+
+密多項式の項リストは係数のリストとして最も効率よく表現される。
+例えば上のAは(1 2 0 3 -2 -5)としてうまく表される。
+この表現の項の次数はその工の係数で始まるサブリストの長さから1を引いた数。
+これはBのような多項式にはひどい表現になり得る。
+少なく孤立した非ゼロな項により中断される巨大なゼロのリストになる。
+疎多項式のより適切な項リストの表現は各項が項の次数とその次数に対する係数を含むリストである非ゼロ項のリスト。
+そのような仕組みではBは効率的に((100 1) (2 2) (0 1))として表現される
+多くの多項式操作が疎多項式上にて実行されるため、こちらの手法を用いる。
+項リストは項のリストとして表現され、高から低へと並べられる。
+これを決定すれば項と項リストに対するセレクタとコンストラクタの実装は簡単。
 
 
+(define (adjoin-term term term-list)
+  (if (=zero? coeff term)
+      (term-list)
+      (cons term term-list)))
 
+(define (the-empty-termlist) '())
+(define (first-term term-list) (car term-list))
+(define (rest-terms term-list) (cdr term-list))
+(define (empty-termlist?) (null? term-list))
 
+(define (make-term order coeff) (list order coef))
+(define (order term) (car term))
+(define (coeff term) (cdr term))
 
-
-
-
-
-
-
-
-
-
-
-
-
+多項式パッケージのユーザーはタグ付き多項式を以下の手続きで作成する。
+(define (make-polynomial var terms)
+  ((get 'make 'polynomial) var terms))
 

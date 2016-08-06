@@ -1,0 +1,69 @@
+3.1.1 局所状態変数
+
+(withdraw 25)
+> 75
+
+(withdraw 25)
+> 50
+
+(withdraw 60)
+> "Insufficient funds"
+
+(withdraw 15)
+> 35
+
+式(withdraw 25)が2度評価されて異なる値を返している。
+これは手続きにとって新しい種類の振る舞い。
+
+(define balance 100)
+(define (withdraw amount)
+  (if (>= balance amount)
+      (begin (set! balance (- balance amount))
+             balance)
+      "Insufficient funds"))
+
+(set! <name> <new-value>)
+
+ここでは<name>はシンボルであり、<new-value>は任意の式。
+set!は<name>を変更し、その値が<new-value>を評価して得られた結果にする。
+
+begin
+2つの式をifのテストが真の場合に評価されるようにする。
+最初にbalanceを減らし、次にbalanceの値を返す。
+
+(begin <exp1> <exp2> ... <expk>)
+
+<exp1>から<expk>までの式は続けて評価され最後の式<expk>がbeginの形式全体の値として返る。
+
+withdrawは望んだ通りに動くが、変数balanceが問題を表す。
+グローバル環境に定義されているので、任意の手続きからアクセス可能。局所状態変数としたい。
+
+(define new-withdraw
+  (let ((balance 100))
+    (lambda (amount)
+      (if (>= balance amount)
+          (begin (set! balance (- balance amount))
+                 balance)
+          "Insufficient funds"))))
+
+ここで行ったのは、letを用いて初期値100に束縛されたローカル変数balanceを持つ環境を設置した。
+この局所環境の中ではlambdaを用いてamountを引数に取り以前のwithdraw手続きと同様に振る舞う手続きを作成している。
+この手続let式の評価の結果として返されるものはnew-withdrawであり正確にwithdrawと同じ振る舞いをするが、その変数balanceは他のどの手続からもアクセスできない。
+
+set!をローカル変数と組み合わせることはローカルな状態を持つ計算オブジェクトを構築するのに用いる一般的なプログラミングテクニック。
+残念なことにこのテクニックを用いることは深刻な問題をもたらす。
+本当にnew-withdrawのような手続きを理解するには、手続き適用の新しいモデルの開発を必要とする。
+
+(define (make-withdraw balance)
+  (lambda (amount)
+    (if (>= balance amount)
+        (begin (set! balance (- balance amount))
+               balance)
+        "Insufficient funds")))
+
+(define W1 (make-withdraw 100))
+(define W2 (make-withdraw 100))
+
+W1, W2が完全に独立したオブジェクトであり、各々が自身のローカル状態変数balanceを持つ。
+ある口座からの引き出しは別の口座には影響しない。
+

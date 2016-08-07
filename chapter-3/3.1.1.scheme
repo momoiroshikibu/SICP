@@ -67,3 +67,43 @@ set!をローカル変数と組み合わせることはローカルな状態を�
 W1, W2が完全に独立したオブジェクトであり、各々が自身のローカル状態変数balanceを持つ。
 ある口座からの引き出しは別の口座には影響しない。
 
+
+引き出し同様に預け入れを扱うオブジェクトを作ることも出来る。
+
+(define (make-account balance)
+  (define (withdraw amount)
+    (if (> balance amount)
+        (begin (set! balance (- balance amount))
+               balance)
+        "Insufficient funds"))
+  (define (deposit amount)
+    (set! balance (+ balance amount))
+    balance)
+  (define (dispatch m)
+    (cond ((eq? m 'withdraw) withdraw)
+          ((eq? m 'deposit) deposit)
+          (else (error "Unknown request: MAKE-ACCOUNT"
+                       m))))
+  dispatch)
+
+各make-accountの呼び出しはローカル状態変数balanceを持つ環境を構築する。
+この環境の中でmake-accountはbalanceにアクセスする手続きdepositとwithdrawを定義する。
+また追加の手続きdispatchはメッセージを入力として取り2つのローカル手続きの内1つを返す。
+dispatch手続きそれ自身が銀行口座オブジェクトを表現する値として返される。
+これはmessage-passingプログラミングスタイル。
+ここではそれをローカル変数を変更する能力と合わせて用いている。
+
+(define acc (make-account 100))
+((acc 'withdraw) 50)
+50
+((acc 'deposit) 40)
+90
+((acc 'withdraw) 60)
+30
+
+各accの呼び出しは局所的に定義されたdepositかwithdraw手続きを返し、指定されたamountに適用される。
+make-withdrawを用いる場合でしたので、別の呼び出し
+
+(define acc2 (make-account) 100)
+
+は完全に分離された口座オブジェクトを生成し、それ自身のローカルなbalanceを持つ。

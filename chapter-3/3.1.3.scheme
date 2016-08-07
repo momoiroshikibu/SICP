@@ -1,0 +1,60 @@
+3.1.3 代入導入のコスト
+
+set!はローカルな状態を持つオブジェクトのモデル化を可能にする。しかし、この利点は犠牲を伴う。
+代入を使わないかぎり、同じ引数を伴う同じ手続きの二度の評価は同じ結果を生じ、手続きは数学上の関数の計算と見ることができる。
+代入を使用しないプログラミングは、それゆえにfunctional programming(関数型プログラミング)として知られている。
+
+(define (make-simplified-withdraw balance)
+  (lambda (amount)
+    (set! balance (- balance amount))
+    balance))
+(define W (make-simplified-withdraw 25))
+(W 20)
+5
+(W 10)
+-5
+
+この手続と以下のset!を使用しないmake-decrementer手続きとを比べてみてください。
+
+(define (make-decrementer balance)
+  (lambda (amount)
+    (- balance amount)))
+
+make-decrementerは指定された残高balanceからその入力を引く。
+しかし連続した呼び出しにおいて、make-simplified-withdrawのような累積効果はない。
+(define D (make-decrementer 25))
+(D 20)
+5
+(D 10)
+15
+
+makd-decrementerがどのように働くのかの説明には置換モデルを使用できる。
+((make-decrementer 25) 20)
+
+最初に結語のオペレーターをmake-decrementerのボディのbalanceを25と置き換えることにより節約する。
+
+((lambda (amount) (- 25 amount)) 20)
+
+lambda式のボディにあるamountを20と置き換えることでオペレーターを適用する
+
+(- 25 20)
+最終的な答えは5
+
+しかしもしmake-simplified-withdrawに対しても同様の置換分析を試みれば何が起こるか観察してみてください。
+
+((make-simplified-withdraw 25) 20)
+最初にmake-simplified-withdrawのボディにあるbalanceを25に置き換えることでオペレーターを簡約する。
+
+((lambda (amount) (set! balancee (- 25 amount))) 20)
+
+ここでlambda式のボディの中のamountを20に置き換えてオペレータを適用する
+
+(set! balance (- 25 20)) 25
+
+もし置換モデルに執着するのであれば、手続きの適用の意味は最初にbalanceを5に設定し、次に式の値として25を返すと言わざるを得ない。
+これは間違った答えを得る。
+正しい答えを得るためには、どうにかして最初の位置のbalance(set!の高改善)を2つ目のbalance(set!の効果の後)から区別せねばならない。
+そして置換モデルはこれを行うことができない。
+ここでの問題は置換はつまるところ、本質的に値の名前であるという概念に基づいている。
+しかしset!と変数の値が変更できるという考え方を紹介してからすぐに、変数はもはや単純な名前ではない。
+今では変数はどうにかして値が格納できる場所を参照し、その場所に格納された値は変更することがカノ王。

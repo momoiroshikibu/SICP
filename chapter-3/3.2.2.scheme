@@ -1,0 +1,13 @@
+3.2.2 単純な手続きの適用
+
+(define (square x)
+  (* x x))
+
+(define (sum-of-squares x y)
+  (+ (square x) (square y)))
+
+(define (f a)
+  (sum-of-squares (+ a 1) (* a 2)))
+
+書く手続きオブジェクトはいくつかのコードとグローバル環境へのポインタから成り立つ。
+

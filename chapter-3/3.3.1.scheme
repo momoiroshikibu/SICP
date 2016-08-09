@@ -48,3 +48,42 @@ z2ではcarとcdrは区別可能なので、set-to-wow!はcarのみを変更す�
 一方で、共有はまた危険であり構造に対して行われる変更がたまたま部品を共有する他の構造に対しても影響を与える。
 ミューテータであるset-car!とset-cdr!は注意深く利用せねばならない。
 データオブジェクトがどのように共有されているかをよく理解しなければ変更は予期しない結果を引き起こす。
+
+
+変更とは代入のこと
+
+(define (cons x y)
+  (define (dispatch m)
+    (cond ((eq? m 'car) x)
+          ((eq? m 'cdr) y)
+          (else (error "undefined operation: CONS" m))))
+  dispatch)
+
+(define (car z) (z 'car))
+(define (cdr z) (z 'cdr))
+
+同じ観察結果がミュータブルなデータに対しても正しいと言える。
+ミュータブルなデータオブジェクトを代入と局所状態を用いることで手続きとして実装可能。
+
+(define (cons x y)
+  (define (set-x! v) (set! x v))
+  (define (set-y! v) (set! y v))
+  (define (dispatch m)
+    (cond ((eq? m 'car) x)
+          ((eq? m 'cdr) y)
+          ((eq? m 'set-car!) set-x!)
+          ((eq? m 'set-cdr!) set-y!)
+          (else
+           (error "Undefined operation: CONS" m))))
+  dispatch)
+
+(define (car z) (z 'car))
+(define (cdr z) (z 'cdr))
+
+
+(define (set-car! z new-value)
+  ((z 'set-car!) new-value) z)
+(define (set-cdr! z new-value)
+  ((z 'set-cdr!) new-value) z)
+
+代入が可変データの振る舞いを説明するために論理上必要なもの全て。

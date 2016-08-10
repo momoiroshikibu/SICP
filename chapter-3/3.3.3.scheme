@@ -7,3 +7,44 @@
 テーブルに新しいレコードを追加する時に変更可能な場所を得るために、テーブルをheaded listとして構築する。
 頭出しリストは特別なバックボーンペアを最初に持つ。
 これはダミーのレコード、今回の場合、自由裁量で選択したシンボル*table*を持つ。
+
+a: 1
+b: 2
+c: 3
+
+テーブルから情報を抽出するには鍵を引数として取り相対する値(またはそのキーの下に値が格納されていない場合にはfalse)を返すlookup手続きを用いる。
+lookupはキーとレコードのリストを引数として期待するassoc命令を用いて定義する。
+assocがダミーレコードを絶対に参照しないことに注意。
+assocは与えられたキーをcarとして持つレコードを返す。
+するとlookupはassocが返した結果のレコードがfalseでないかをチェックし、そのレコードの値(cdr)を返す。
+
+(define (lookup key table)
+  (let ((record (assoc key (cdr table))))
+    (if record
+        (cdr record)
+        false)))
+
+(define (assoc key records)
+  (cond ((null? records) false)
+        ((equal? key (caar records)) (car records))
+        (else (assoc key (cdr recordds)))))
+
+値をテーブルに指定したキーの下に挿入するために、最初にassocを用いて既にテーブルの中にキーを持つレコードが存在しないか確認する。
+もし無ければ鍵と値をconsすることで新しいレコードを作成しこれをテーブルのレコードリストの先頭のダミーレコードの後ろに挿入する。
+もし既にこのキーのレコードが存在する場合にはそのレコードのcdrに新しい値を設定する。
+テーブルのヘッダは新しいレコードを挿入するために変更する固定位置を与える。
+
+(define (insert! key value table)
+  (let ((record (assoc key (cdr table))))
+    (if record
+        (set-cdr! record value)
+        (set-cdr! table
+                  (cons (cons key value)
+                        (cdr table)))))
+  'ok)
+
+新しいテーブルを構築するためにはシンボル*table*を持つリストを作成する。
+
+(define (make-table)
+  (list '*table*))
+

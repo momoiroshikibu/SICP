@@ -48,3 +48,50 @@ assocは与えられたキーをcarとして持つレコードを返す。
 (define (make-table)
   (list '*table*))
 
+
+二次元テーブル
+二次元テーブルでは各値は2つのキーにより索引付けられます。
+そのようなテーブルを各キーが部分テーブルを構築する1次元テーブルとして構築することができます。
+
+math:    +: 43
+         -: 45
+         *: 42
+
+letters: a: 97
+         b: 98
+
+これは2つ部分テーブルを持ちます。
+部分テーブルは特別なヘッダシンボルを必要としません。
+部分テーブルを特定するキーがこの目的を果たすためです。
+アイテムを探す時、最初のキーを用いて正しい部分テーブルを特定します。
+次にふたつ目のキーを用いて部分テーブルの中のレコードを特定します。
+
+(define (lookup key-1 key-2 table)
+  (let ((subtable
+         (assoc key-1 (cdr table))))
+    (if subtable
+        (let ((record
+               (assoc keyt-2 (cdr subtable))))
+          (if record
+              (cdr record)
+              false))
+        false)))
+
+キーのペアの下に新しいアイテムを挿入するにはassocを用いて最初のキーの下に部分テーブルが存在するかどうかを確認します。
+もし無ければ単一のレコード(key-2, value)を含む新しい部分テーブルを構築し、それを最初のキーの下のテーブルに挿入します。
+もし最初のキーに対する部分テーブルが既に存在する場合、新しいレコードをこの部分テーブルに先に説明した一次元テーブルに対する挿入方法を用いて挿入します。
+
+(define (insert! key-1 key-2 value table)
+  (let ((subtable (assoc key-1 (cdr table))))
+    (if subtable
+        (let ((record (assoc key-2 (cdr subtable))))
+          (if record
+              (set-cdr! record value)
+              (set-cdr! subtable
+                        (cons (cons key-2 value)
+                              (cdr subtable)))))
+        (set-cdr! table
+                  (cons (list key-1
+                              (cons key-2 value))
+                        (cdr table)))))
+  'ok)

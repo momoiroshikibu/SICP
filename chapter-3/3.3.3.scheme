@@ -95,3 +95,55 @@ letters: a: 97
                               (cons key-2 value))
                         (cdr table)))))
   'ok)
+
+
+ローカルなテーブルの作成
+上で定義されたlookupとinsert!命令はテーブルを引数として取る。
+これが複数のテーブルにアクセスするプログラムを許可する。
+複数のテーブルを扱う他の方法には各テーブルに対し分離されたlookupとinsert!手続きを持つ方法がある。
+これはテーブルを手続き的に、その局所状態の一部に内部テーブルを持つオブジェクトとして表現することにより可能になる。
+適切なメッセージを送った時に、このテーブルオブジェクトは内部テーブルを操作する手続きを適用する。
+以下にこの様式で表現された二次元テーブルのためのジェネレータを示す。
+
+
+(define (make-table)
+  (let ((local-table (list '*table*)))
+    (define (lookup key-1 key-2)
+      (let ((subtable
+             (assoc key-1 (cdr local-table))))
+        (if subtable
+            (let ((record
+                   (assoc key-2 (cdr subtable))))
+              (if record (cdr record) false))
+            false)))
+    (define (insert! key-1 key-2 value)
+      (let ((subtable
+             (assoc key-1 (cdr local-table))))
+        (if subtable
+            (let ((record
+                   (assoc key-2 (cdr subtable))))
+              (if record
+                  (set-cdr! record value)
+                  (set-cdr! subtable
+                            (cons (cons key-2 value)
+                                  (cdr subtable)))))
+            (set-cdr! local-table
+                      (cons (list key-1 (cons key-2 value))
+                            (cdr local-table)))))
+      'ok)
+    (define (dispatch m)
+      (cons ((eq? m 'lookup-proc) lookup)
+            ((eq? m 'insert-proc!) insert!)
+            (else (error "Unknown operation: TABLE" m))))
+    dispatch))
+
+make-tableを用いることでデータ適従プログラミングのためのgetとputを以下のように実装可能。
+
+(define operation-table (make-table))
+(define get (operation-table 'lookup-proc))
+(define put (operation-table 'insert-proc!))
+
+getは引数として2つのキーを取り、putは引数として2つのキーと値を取る。
+両方の命令ともに同じ局所テーブルをアクセスする。
+局所テーブルはmake-tableの呼び出しにより作成されたオブジェクトの中にカプセル化される。
+

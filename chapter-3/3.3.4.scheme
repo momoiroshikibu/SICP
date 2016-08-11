@@ -40,3 +40,69 @@ ok
     (or-gate c1 c2 c-out)
     'ok))
 
+プリミティブな関数箱
+ある回路上の信号の変化が他の配線上の信号に影響を与える力を実装する。
+
+(get-signal <wire>)
+回線上の信号の現在地を返す
+
+(set-signal! <wire> <new value>)
+回路上の信号の値を新しい値に変更する
+
+(add-action! <wire> <procedure of no arguments>)
+指定された手続きが回路上の信号が値を変化した場合常に実行されるように宣言する。
+そのような手続きは、回路上の信号の値の変化が他の回路と通信を行うための伝達手段。
+
+さらに手続きafter-delayを使用し遅延時間と実行される手続きを取得し、与えられた手続きを遅延時間後に実行します。
+これらの手続きを用いてプリミティブなデジタル論理関数を定義できる。
+入力を逆変換機を通して出力に接続するためにadd-action!を用いて入力回路と入力回路上の信号が値をヘンカするたびに実行される手続きを関連付ける。
+その手続は入力信号のlogical-not(論理否定)を計算し、そしてinverter-delay後に出力信号にこの新しい値を設定する。
+
+(define (inverter input output)
+  (define (invert-input)
+    (let ((new-value (logical-not (get-signal input))))
+      (after-delay inverter-delay
+                   (lambda ()
+                     (set-signal! output new-value)))))
+  (add-action! input invert-input 'ok)
+  (define (logical-not s)
+    (cond ((= s 0) 1)
+          ((= s 1) 0)
+          (else (error "Invalid signal" s)))))
+
+ANDゲートはより少しだけ複雑。アクション手続きはゲートへの入力のどちらかが変化した場合に実行されなければならない。
+それが入力回路上の信号の値のlogical-and(論理積)をlogical-notと類似の手続きを用いて求め、出力回路上に起こる新しい値への変更をand-gate-delay後に設定する。
+
+(define (and-gate a1 a2 output)
+  (define (and-action-procedure)
+    (let ((new-value
+           (logical-and (get-signal a1) (get-signal a2))))
+      (after-delay
+       and-gate-delay
+       (lambda () (set-signal! output new-value)))))
+  (add-action! a1 and-action-procedure)
+  (add-action! a2 and-action-procedure)
+  'ok)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

@@ -85,6 +85,55 @@ ANDゲートはより少しだけ複雑。アクション手続きはゲート�
   'ok)
 
 
+回路の表現
+wireは2つのローカルな状態変数を持つ計算オブジェクトになる。
+その2つはsignal-value(信号値(初期値は0))と信号が値を変えた時に実行されるaction-procedures(行動手続き)の集合。
+メッセージパッシングスタイルを用いてワイヤを局所手続きの集合として適切な局所命令を選択する手続きdispatchとともに実装する。
+
+(define (make-wire)
+  (let ((signal-value 0) (action-procedures '()))
+    (define (set-my-signal! new-value)
+      (if (not (= signal-value new-value))
+          (begin (set! signal-value new-value)
+                 (call-each action-procedures))
+          'done))
+    (define (accept-action-procedure! proc)
+      (set! action-procedures
+            (cons proc action-procedures))
+      (proc))
+    (define (dispatch m)
+      (cond ((eq? m 'get-signal) signal-value)
+            ((eq? m 'set-signal!) set-my-signal!)
+            ((eq? m 'add-action) accept-action-procedure!)
+            (else (error "Unknown operation: WIRE" m))))
+    dispatch))
+
+局所手続きset-my-signal!は新しい信号値が配線上の信号を変えるかチェックします。
+もしそうであればすべての行動手続きを以下の手続きcall-eachを用いて実行します。
+call-eachは引数なし手続きのリスト内のすべてのアイテムを呼び出します。
+
+(define (call-each procedures)
+  (if (null? procedures)
+      'done
+      (begin ((car procedures))
+             (call-each (cdr procedures)))))
+
+局所手続きaccept-action-procedure!は与えられた手続きを実行対象手続きリストに追加します。
+次に新しい手続きを一度実行します。
+ローカルのdispatch手続きが指定通りに設定されていることから、以下の手続きを与えて配線上の局所命令にアクセスすることが出来ます。
+
+(define (get-signal wire) (wire 'get-signal))
+(define (set-signal! wire new-value)
+  ((wire 'set-signal!) new-value))
+(define (add-action! wire action-procedure)
+  ((wire 'add-action) action-procedure))
+
+時間的に変化する信号を持ち皮下的に装置に取り付けられる配線はミュータブルなオブジェクトの特性をよく表している。
+代入により変化するローカル状態変数を持つ手続きとしてモデル化した。
+新しい配線が作成された時、新しい状態変数の信号は(make-wire中のlet式により)確保され、新しいdispatch手続きが構築され返され、
+新しい状態変数を持つ環境が確保される。
+
+
 
 
 

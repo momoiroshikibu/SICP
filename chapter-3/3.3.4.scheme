@@ -134,6 +134,38 @@ call-eachは引数なし手続きのリスト内のすべてのアイテムを�
 新しい状態変数を持つ環境が確保される。
 
 
+予定表
+シミュレータを完成させるために必要なものはafter-delayのみ。
+ここでのアイディアはagenda(予定表)と呼ばれるデータ構造を保持し、それに行うべき予定を保存する。
+以下の命令は予定表のために定義される。
+
+(make-agenda): 新しい空の予定表を返す。
+(empty-agenda? <agenda>): 指定した予定表が空であれば真である。
+(first-agenda-item <agenda>): 予定表の最初のアイテムを返す。
+(remove-first-agenda-item! <agenda>): 予定表から最初のアイテムを削除する。
+(add-to-agenda! <time> <action> <agenda>): 指定された時間後に実行される行動手続きを追加する。
+(current-time <agenda>): 現在のシミュレーション時間を返す。
+
+使用する予定表はthe-agendaにより指定される。
+手続きafter-delayは新しい要素をthe-agendaに追加する。
+
+(define (after-delay delay action)
+  (add-to-agenda! (+ delay (current-time the-agenda))
+                  action
+                  the-agenda))
+
+シミュレーションは手続きpropagateにより駆動され、the-agenda上で操作を行い、予定表上の各手続きを順に実行します。
+一般的にシミュレータが実行されるに連れ、新しいアイテムが予定表に追加され、propagateはシミュレーションを予定表にアイテムが存在する間は続ける。
+
+(define (propagate)
+  (if (empty-agenda? the-agenda)
+      'done
+      (let ((first-item (first-agenda-item the-agenda)))
+        (first-item)
+        (remove-first-agenda-item! the-agenda)
+        (propagate))))
+
+
 
 
 

@@ -61,3 +61,141 @@ C上のprobeが起動され値を報告します。Cはまたその値を上で�
 Cは元の値を設定したuserがいま撤回しているのに気づき、Cはその値をなくすことにprobeが示すように同意し、
 ネットワークの残りにこの結果について伝える。
 この情報が結果的にFに伝播し、Fは今となってはそれ自身の値が77であると信じ続けるための理由がないことに気づく。
+
+
+制約システムの実装
+局所状態を持つ手続き型のオブジェクトにより実装される。
+制約システムのプリミティブなオブジェクトはいくらかより複雑ではあるものの、シンプル。
+
+(has-value? <connector>)
+コネクタが値を持つかどうか判断する
+
+(get-value <connector>)
+コネクタの現在地を返す
+
+(set-value! <connector> <new-value> <informant>)
+情報がコネクタに対しその値を新しい値に設定するよう要求することを示す
+
+(forget-value! <connector> <retractor>)
+コネクタに対し撤回を望むものが値をわすれることを要求していると伝える
+
+(connect <connector> <new-constraint>)
+コネクタに対し新しい制約への参加を指示する
+
+コネクタは以下の2つの手続きを用いて制約と通信を行う
+・与えられた制約にコネクタが値を持っていると伝える手続きinform-about-value
+・コネクタが値を失ったと伝えるinform-about-no-value
+
+adderは加数コネクタa1とa2とsumコネクタの間に加算器制約を構築するコンストラクタ。
+加算器は局所状態を持つ手つきとして実装される。
+
+(define (adder a1 a2 sum)
+  (define (process-new-value)
+    (cond ((and (has-value? a1) (has-value? a2))
+           (set-value! sum
+                       (+ (get-value a1) (get-value a2))
+                       me))
+          ((and (has-value? a1) (has-value? sum))
+           (set-value! a2
+                       (- (get-value sum) (get-value a1))
+                       me))
+          ((and (has-value? a2) (has-value? sum))
+           (set-value! a1
+                       (- (get-value sum) (get-value a2))
+                       me))))
+  (define (process-forget-value)
+    (forget-value! sum me)
+    (forget-value! a1 me)
+    (forget-value! a2 me)
+    (process-new-value))
+  (define (me request)
+    (cond ((eq? request 'I-have-a-value)
+           (process-new-value))
+          ((eq? request 'I-lost-my-value)
+           (process-forget-value))
+          (else
+           (error "Unknown request: ADDER" request))))
+  (connect a1 me)
+  (connect a2 me)
+  (connect sum me)
+  me)
+
+adderは新しい加算器を指定されたコネクタに接続し自身をその値として返す。
+手続きmeは加算器を表現し、ローカル手続きを起動するものの役割を果たす。
+
+(define (inform-about-value constraint)
+  (constraint 'I-have-a-value))
+
+(define (inform-abount-no-value constraint)
+  (constraint 'I-lost-my-value))
+
+加算器のローカル手続きprocess-new-valueはその加算器が繋がるコンテクタのうち1つが値を得たことを報告された時に呼び出される。
+加算器は最初にa1とa2の両方が値を持っているか確認する。もしそうならばsumに2つの加数の和をその値として設定するように指示する。
+set-value!のinformant(情報提供者)引数は加算器オブジェクト自身であるmeである。
+もしa1とa2の両方が値を持っていない場合、加算器はa1とsumが値を持っていないかを確認する。
+加算器がコネクタの1つが値を失ったと報告された場合、すべてのコネクタに対し値を捨てるように指示する。
+次に加算器はprocess-new-valueを実行する。
+この理由は、1つまたはそれ以上のコネクタが依然として値を持っている可能性があり、(つまり、コネクタが元々その加算器により設定されたのではない値を持っている)これらの値は加算器を通して伝播し返す必要がある。
+
+(define (multiplier (m1 m2 product))
+  (define (process-new-value)
+    (cond ((or (and (has-value? m1) (= (get-value m1) 0))
+               (and (has-value? m2) (= (get-value m2) 0)))
+           (set-value! product 0 me))
+          ((and (has-value? m1) (has-value? m2))
+           (set-value! product
+                       (* (get-value m1) (get-value m2))
+                       me))
+          ((and (has-value? product) (has-value? m1))
+           (set-value! m2
+                       (/ (get-value product)
+                          (get-value m1))
+                       me))
+          ((and (has-value? product) (has-value? m2))
+           (set-value m1
+                      (/ (get-value product)
+                         (get-avlue m2))
+                      me))))
+  (define (process-forget-value)
+    (forget-value! product me)
+    (forget-value! m1 me)
+    (forget-value! m2 me))
+  (define (me request)
+    (cond ((eq? request 'I-have-a-value)
+           (process-new-value))
+          ((eq? request 'I-lost-my-value)
+           (process-forget-value))
+          (else (error "Unknown request: MULTIPLIER" request))))
+  (connect m1 me)
+  (connect m2 me)
+  (connect product me)
+  me)
+
+constantコンストラクタは単純に指定されたコネクタの値を設定する。
+I-have-a-valueとI-lost-valueのどちらのメッセージが定数箱に送られてもエラーを発する。
+
+(define (constant value connector)
+  (define (me request)
+    (error "Unknown request: CONSTANT" request))
+  (connect connector me)
+  (set-value! connector value me)
+  me)
+
+最後にprobeは指定されたコネクタの設定、設定解除のメッセージを表示する。
+
+(define (probe name connector)
+  (define (print-probe value)
+    (newline) (display "Probe: ") (display name)
+    (display " = ") (display value))
+  (define (process-new-value)
+    (print-probe (get-value connector)))
+  (define (process-forget-value) (print-probe "?"))
+  (define (me request)
+    (cond ((eq? request 'I-have-a-value)
+           (process-new-value))
+          ((eq? request 'I-lost-my-value)
+           (process-forget-value))
+          (else (error "Unknown request: PROBE" request))))
+  (connect connector me)
+  me)
+

@@ -199,3 +199,60 @@ I-have-a-valueとI-lost-valueのどちらのメッセージが定数箱に送ら
   (connect connector me)
   me)
 
+
+コネクタの表現
+コネクタは局所状態変数を持つ手続き型のオブジェクトとして表現され、
+valueはコネクタの現在地、
+informantはコネクタの値を設定したオブジェクト、
+constraintsはコネクタが参加する制約のリスト
+
+(define (make-connector)
+  (let ((value false) (informant false) (constraints '()))
+    (define (set-my-value newval setter)
+      (cond ((not (has-value? me))
+             (set! value newval)
+             (set! informant setter)
+             (for-each-execpt setter
+                              inform-about-value
+                              constraints))
+            ((not (= value newval))
+             (error "Contradiction" (list value newval)))
+            (else 'ignored)))
+    (define (forget-my-value retractor)
+      (if (eq? retractor informant)
+          (begin (set! informant false)
+                 (for-each-except retractor
+                                  inform-about-no-value
+                                  constraints))
+          'ignored))
+    (define (connect new-constraint)
+      (if (not (memq new-constraint constraints))
+          (set! constraints
+                (cons new-constraint constraints)))
+      (if (has-value? me)
+          (inform-about-value new-constraint))
+      'done)
+    (define (me request)
+      (cond ((eq? request 'has-value?)
+             (if informant true false))
+            ((eq? request 'value) value)
+            ((eq? request 'set-value!) set-my-value)
+            ((eq? request 'forget) forget-my-value)
+            ((eq? request 'connect) connect)
+            (else (error "Unknown operation: CONNECTOR" request))))
+    me))
+
+コネクタの局所手続きset-my-valueはコネクタの値を設定する要求が存在した時に呼ばれる。
+もしコネクタが現在値を持っていない場合、その値を設定し、値の設定を要求した制約をinformantとして記憶する。
+次にコネクタは参加している制約全てに対し値の設定を要求した制約を覗いて通知する。
+これは以下のiteratorを用いて達成される。
+イテレータは指定された手続きを与えられた1つを除いたリストの中のすべてのアイテムに対して適用する。
+
+(define (for-each-except exception procedure list)
+  (define (loop items)
+    (cond ((null? items) 'done)
+          ((eq? (car items) exception) (loop (cdr items)))
+          (else (procedure (car items))
+                (loop (cdr items)))))
+  (loop list))
+

@@ -11,3 +11,40 @@
 これが繰り返される。例として摂氏と華氏の間の換算ではw, x yは9, 5, 32それぞれによりすぐに設定される。
 コネクタは蒸散機と加算器を起動し、それらは続行に必要な情報が十分ではないことを判断する。
 
+制約システムの利用
+制約システムを用いて上で説明された気温の計算を実行するには最初に2つのコネクタ、CとFをあるべきネットワークにリンクする。
+
+(define C (make-connector))
+(define F (make-connector))
+(celsius-fahrenheit-converter C F)
+ok
+
+ネットワークを作成する手続きは以下のように定義される
+
+(define (celsius-fahrenheit-converter c f)
+  (let ((u (make-connector))
+        (v (make-connector))
+        (w (make-connector))
+        (x (make-connector))
+        (y (make-connector)))
+    (multiplier c w u)
+    (multiplier v x u)
+    (adder v y f)
+    (constant 9 w)
+    (constant 5 x)
+    (constant 32 y)
+    'ok))
+
+この手続きは内部コネクタu v w x yをさk静止、それらをプリミティブな制約コンストラクタadder multiplier constantを用いてリンクする。
+
+実行中のネットワークを見るために、コネクタCとFにプローブを設置する。
+
+(probe "Celsius temp" C)
+(probe "Fahrenheit temp" F)
+
+次にCの値を25に設定する。
+(set-value!への3つ目の引数はCにこの支持がuserによるものであることを伝えている)
+(set-value! C 25 'user)
+
+C上のprobeが起動され値を報告します。Cはまたその値を上で説明されたネットワークを通して伝播させる。
+これがFに77を設定し、F上のprobeにより報告される。

@@ -65,4 +65,57 @@ xに対しただ2つの起こりえる値、101, 121を返す。
             (else (error "Unknown request: MAKE-ACCOUNT" m))))
     dispatch))
 
-このじそすにより、2つのプロセスは単一の口座に並行に預け入れと引き出しを行うことはできなくなった。
+この実装により、2つのプロセスは単一の口座に並行に預け入れと引き出しを行うことはできなくなった。
+
+
+複数共有リソース使用の複雑さ
+シリアライザは並列プログラムの複雑性の分離を手助けすることで、注意深く正しく取り扱えるようにする強力な抽象化を与える。
+しかしシリアライザの使用は(単一の銀行口座のような)ただ単一の共有リソースが存在する場合には相対的に簡単だが、並行プログラミングは複数の共有リソースがある場合に、裏切るかのように難しくなる。
+
+(define (exchange account1 account2)
+  (let ((difference (- (account1 'balance)
+                       (account2 'balance))))
+    ((account1 'withdraw) difference)
+    ((account2 'deposit) difference)))
+
+この手続は単一のプロセスのみが交換を試みる場合にはうまく働く。
+正しい振る舞いのためには、exchange手続きを、交換の全体の準備の間、口座へのどの他の並行アクセスもロックアウトするように準備しなければならない。
+これを達成する1つの方法は両方の口座のシリアライザを用いてexchange手続き全体を直列化する。
+口座のシリアライザへのアクセスに準備を行う。シリアライザを露出することで、銀行口座オブジェクトのモジュール化を意図的に破っていることに注意。
+
+(define (make-account-and-serializer balance)
+  (define (withdraw amount)
+    (if (>= balance amount)
+        (begin (set! balance (- balance amount))
+                balance)
+        "Insufficient funds"))
+  (define (deposit amount)
+    (set! balance (+ balance amount))
+    balance)
+  (let ((balance-serializer (make-serializer)))
+    (define (dispatch m)
+      (cond ((eq? m 'withdraw) withdraw)
+            ((eq? m 'deposit) deposit)
+            ((eq? m 'balance) balance)
+            ((eq? m 'serializer) balance-serializer)
+            (else
+             (error "Unknown request: MAKE-ACCOUNT" m))))
+    dispatch))
+
+これを用いて直列化された預け入れと引き出しを行うことができます。
+しかし最初の直列化された口座とは異なり、直列化を明示的に管理することは銀行口座オブジェクトの各ユーザーの責任。
+(define (deposit account amount)
+  (let ((s (account 'serializer))
+        (d (account 'deposit)))
+    ((s d) amount)))
+
+シリアライザをこの方法で外出しすることは私たちに直列化された交換プログラムを実行するのに十分な柔軟性を与える。
+単純に元のexchange手続きを両方の口座のシリアライザにて直列化する。
+
+(define (serialized-exchange account1 account2)
+  (let ((serializer1 (account1 'serializer))
+        (serializer2 (account2 'serializer)))
+    ((serializer1 (serializer2 exchange))
+     account1
+     account2)))
+

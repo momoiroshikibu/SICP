@@ -171,3 +171,14 @@ test-and-set!の実際の実装は私達のシステムが並行プロセスを�
 このような場合にはtest-and-set!はテストと設定の間は時分割を停止することでうまくいく。
 
 代替法として、マルチプロセスのコンピュータはアトミックな命令を直列ハードウェアにてサポートする。
+
+
+シングルプロセッサ向けのMIT Schemeは時分割モデルを使うので、以下のように実装する。
+(define test-and-set! (cell)
+  (without-interruputs
+   (lambda ()
+     (if (car cell)
+         true
+         (begin (set-car! cell true)
+                false)))))
+without-interruputsは時分割割り込みをその引数である手続きが実行されている間、無効化する。

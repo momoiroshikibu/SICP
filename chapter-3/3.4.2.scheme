@@ -119,3 +119,55 @@ xに対しただ2つの起こりえる値、101, 121を返す。
      account1
      account2)))
 
+
+シリアライザの実装
+私たちはシリアライザをmutex(ミューテックス、相互排除)と呼ばれるプリミティブな同期の仕組みを用いて実装する。
+mutexは2つの命令をサポートするオブジェクト。
+1つはmutexがacquired(獲得)でき、もう一つはmutexがreleasred(解放)できる。
+一度mutexが獲得されれば、他のそのmutexに対する獲得命令はそのmutexが開放されるまで実行することができない。
+私達の実装では各シリアライザは関連付けられたmutexを持つ。
+手続きpを与えられた場合、シリアライザはmutexを獲得する手続きを返し、pを実行し、それからmutexをかいほうする。
+これがシリアライザにより生成された手続きの1つのみが一度に実行できることを保証する。
+これが保証する必要のある、直列化の特性。
+
+(define (make-serializer)
+  (let ((mutex (make-mutex)))
+    (lambda (p)
+      (define (serialized-p . args)
+        (mutex 'acquire)
+        (let ((val (apply p args)))
+          (mutex 'release)
+          val))
+      serialized-p)))
+
+mutexはミュータブルなオブジェクト(ここで私たちは1要素のリストを使用し、cellとして参照する)であり、いくらかの関係性が数量の間に保存されることを示す。trueかfalseの値を保持する。値がfalseの時、mutexは獲得可能。
+値がtrueの時、mutexは使用不可であり、このmutexを獲得しようと試みるプロセスは待たなければならない。
+私達のmutexコンストラクタmake-mutexはセルの中身をfalseに初期化することから始める。
+mutexを獲得するためにはセルを確認する。もしmutexが使用可能であれば、セルの中身をtrueにして続行する。
+そうでなければループの中で待ち、mutexが使用可能になるまで何度も獲得を試みる。
+mutexを解放するためにはセルの中身をfalseに設定する。
+
+(define (make-mutex)
+  (let ((cell (list false)))
+    (define (the-mutex m)
+      (cond ((eq? m 'acquire)
+             (if (test-and-set! cell)
+                 (the-mutex 'acquire)))
+            ((eq? m 'release) (clear! cell))))
+    the-mutex))
+
+test-and-set!はセルをテストし、テストの結果を返す。
+さらに、もしfalseであれば、test-and-set!はセルの中身にfalseを返す前にtrueを設定する。
+
+(define (test-and-set! cell)
+  (if (car cell) true (begin (set-car! cell true) false)))
+
+test-and-set!命令はatomically実行されなければならない。
+つまり、一度プロセスがセルをテストしfalseであると知ったならば、セルの中身が実際にセルをテストできる他のプロセスよりもtrueに設定されることを保証せねばならない。
+
+test-and-set!の実際の実装は私達のシステムが並行プロセスをどのように実行するかの詳細に依存する。
+例えば並行プロセスを逐次的なプロセッサ上に時分割のメカニズムを用いて複数のプロセスを循環させることで実行するかもしれない。
+各プロセスに少ない時間の間割り込みが発生するまで実行することを許し次のプロセスを開始します。
+このような場合にはtest-and-set!はテストと設定の間は時分割を停止することでうまくいく。
+
+代替法として、マルチプロセスのコンピュータはアトミックな命令を直列ハードウェアにてサポートする。

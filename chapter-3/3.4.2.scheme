@@ -18,3 +18,51 @@
 例えばもし共有変数をその変数の前の値に応じて変更したい時、同じ手続き内でその変数の以前の値にアクセスし、その変数に新しい値を代入する。
 それからその変数に代入するどのほかの手続もこの手続とは並行には実行できないことを、同じシリアライザを持つこれらの手続きのすべてを直列化することにより確実にする。これはその変数の値あgアクセスとそれに対応する代入の間に変更されることができないことを保証する。
 
+
+Schemeのシリアライザ
+parallel-execute(並列実行)と呼ばれる手続きを含む拡張Schemeを持っていると仮定する。
+
+(parallel-execute <p1> <p2> ... <pk>)
+各<p>は引数なしの手続きでなければならない。parallel-executeは分離されたプロセスを各<p>に対して作り、それらのプロセスは<p>を引数無しで適用する。
+これらのプロセスはすべて並行に実行される。
+
+(define x 10)
+(parallel-execute
+ (lambda () (set! x (* x x)))
+ (lambda () (set! x (+ x 1))))
+
+この2つの並行プロセスを作成する。
+実行完了後にp1とp2のイベントのインターリーブに依存するため、xは5つの起こりえる値のうち1つになる。
+
+並行性をserializerにより作成された直列化された手続きを用いることで抑制することができる。
+シリアライザはmake-serializerにより構築され、この実装は後ほど与えられる。
+シリアライザは手続きを引数として取り、元の手続きのように振る舞うserialized(被直列化)手続きを返す。
+与えられたシリアライザへのすべての呼び出しは同じ集合に属する被直列化手続きを返す。
+(define x 10)
+(define s (make-serializer))
+(parallel-execute
+ (s (lambda () (set! x (* x x))))
+ (s (lambda () (set! x (+ x 1)))))
+
+xに対しただ2つの起こりえる値、101, 121を返す。
+他の可能性はp1とp2の実行がインターリーブされないため排除された。
+
+
+(define (make-account balance)
+  (define (withdraw amount)
+    (if (>= balance amount)
+        (begin (set! balance (- balance amount))
+               balance)
+        "Insufficient funds"))
+  (define (deposit amount)
+    (set! balance (+ balance amount))
+    balance)
+  (let ((protected (make-serializer)))
+    (define (dispatch m)
+      (cond ((eq? m 'withdraw) (protected withdraw))
+            ((eq? m 'deposit) (protected deposit))
+            ((eq? m 'balance) balance)
+            (else (error "Unknown request: MAKE-ACCOUNT" m))))
+    dispatch))
+
+このじそすにより、2つのプロセスは単一の口座に並行に預け入れと引き出しを行うことはできなくなった。

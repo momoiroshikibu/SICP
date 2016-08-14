@@ -86,3 +86,75 @@ stream-carはペアのcarを選択する。
 stream-cdrはペアのcdrを選択し、そこに見つかった遅延表現を評価し、ストリームの残りを得る。
 
 
+ストリーム実装の実践
+(stream-car
+ (stream-cdr
+  (stream-filter prime?
+                 (stream-enumerate-interval
+                  10000 1000000))))
+
+stream-enumerate-intervalを引数10,000と1,000,000をともに呼び出すことからはじめる。
+stream-enumerate-intervalはenumerate-intervalのストリーム版。
+
+(define (stream-enumerate-interval low high)
+  (if (> low high)
+      the-empty-stream
+      (cons-stream
+       low
+       (stream-enumerate-interval (+ low 1) high))))
+
+したがってstream-enumerate-intervalで返される結果は、cons-streamで形成された
+
+(cons 10000
+      (delay (stream-enumerate-interval 10001 1000000)))
+
+つまりstream-enumerate-intervalはペアとして表現されたストリームを返しそのcarは10,000でそのcdrはプロミスでありもし要求されれば区間のより多くを列挙する。
+このストリームはここでフィルタをかけ素数を残す。
+
+(define (stream-filter pred stream)
+  (cond ((stream-null? stream) the-empty-stream)
+        ((pred (stream-car stream))
+         (cons-stream (stream-car stream)
+                      (strema-filter
+                       pred
+                       (stream-cdr stream))))
+        (else (stream-filter pred (stream-cdr stream)))))
+
+stream-filterはストリームのstream-car(ペアのcarであり10,000)をテストします。
+これは素数でないのでstream-filterは入力ストリームのstream-cdrを調査します。
+stream-cdrの呼び出しは遅延化されたstream-enumerate-intervalの評価を強制する。
+
+(cons 10001
+      (delay (stream-enumerate-interval 10002 1000000)))
+
+stream-filterいまこのストリームのstream-carである10,001を見て、これもまた素数でないことを確認し、もう一度stream-cdrを強制する。
+これをstream-enumerate-intervalが10.007を生じるまで繰り返し、するとすぐにstream-filterはその定義に従い以下を返す。
+(cons-stream (stream-car stream)
+             (stream-filter pred (stream-cdr stream)))
+
+これはこの場合以下のようになる。
+
+(cons 10007
+      (delay (stream-filter)
+             prime?
+             (cons 10008
+                   (delay (stream-enumerate-interval
+                           10009
+                           1000000)))))
+
+これでこの結果は元の式stream-cdrに渡される。
+これにより遅延されたstream-filterが強制され、それが順に遅延されたstream-enumerate-intervalを次の素数、10009を見つけるまで強制する。
+最終的に、結果が私達の元の式のstream-carに渡されたものが以下
+
+(cons 10009
+      (delay (stream-filter
+              prime?
+              (cons 10010
+                    (delay (stream-enumerate-interval
+                            10011
+                            1000000))))))
+
+stream-carが10,009を返し計算が完了します。2つ目の素数を見つけるのに必要なだけの整数が素数性のテストを受け、区間は素数フィルタに入力するのに必要なだけ列挙された。
+一般的に、遅延評価はdemand-driven(駆動要求)プログラミングだと考えることが出来、ストリーム処理の各ステージは次のステージを満たすのに十分な場合にのみ駆動される。
+見かけ上の構造から実際のイベントの順を分断することを行った。手続きをストリームが”一度にそろって”存在するかのように書くが、実際には演算は漸増的に伝統的なプログラミングスタイルのように実行される。
+

@@ -32,4 +32,13 @@ integersと同様にフィボナッチ数の無限ストリームも定義でき
 fibsはそのcarが0で、そのcdrは(fibgen 1 1)を評価するプロミスであるペア。
 この遅延化した(fibgen 1 1)を評価すると、carが1でcdrが(fibgen 1 2)を評価するプロミスであるペアを生成する。
 
+(define (sieve stream)
+  (cons-stream
+   (stream-car stream)
+   (sieve (stream-filter
+           (lambda (x)
+             (not (divisible? x (stream-car stream))))
+           (stream-cdr stream)))))
 
+(stream-ref primes 50)
+233

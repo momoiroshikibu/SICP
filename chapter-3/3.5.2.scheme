@@ -1,0 +1,35 @@
+3.5.2 無限ストリーム
+
+ストリームを無限に長い列を表現するために使用することが出来る。
+
+(define (integers-starting-from n)
+  (cons-stream n (integers-starting-from (+ n 1))))
+
+(define integers (integers-starting-from 1))
+
+integersがcarが1でcdrが2で始まる整数を生成するプロミスになるため、これは理にかなっている。
+これは無限に長いストリーム。しかし任意の与えられた時間にはその有限な一部しか検討することはできない。
+従って私達のプログラムは無限のストリーム全体がそこにあることは知ることはできない。
+integersを用いて他の無限ストリームを定義できる。
+7で割ることの出来ない整数のストリーム。
+
+(define (divisible? x y) (= (remainder x y) 0))
+
+(define no-sevens
+  (stream-filter (lambda (x) (not (divisible? x 7)))
+                 integers))
+
+すると7で割り切れない整数をこのストリームの要素にアクセスするだけで見つけることができる。
+
+(stream-ref no-sevens 100)
+117
+
+integersと同様にフィボナッチ数の無限ストリームも定義できる。
+
+(define (fibgen a b) (cons-stream a (fibgen b (+ a b))))
+(define fibs (fibgen 0 1))
+
+fibsはそのcarが0で、そのcdrは(fibgen 1 1)を評価するプロミスであるペア。
+この遅延化した(fibgen 1 1)を評価すると、carが1でcdrが(fibgen 1 2)を評価するプロミスであるペアを生成する。
+
+

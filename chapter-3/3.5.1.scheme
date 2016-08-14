@@ -1,0 +1,88 @@
+3.5.1 ストリームとは遅延化リスト
+
+列をリストとして表現するとこの洗練さは演算により必要とされる時間と記憶域に関する深刻な日効率性を犠牲にして得ることになる。
+列上の操作をリストの変形として表現した時、私達のプログラムは(大きくなり得る)データ構造を処理の各ステップにおいて構築とコピーをせねばならない。
+
+(define (sum-primes a b)
+  (define (iter count accum)
+    (cond ((> count b) accum)
+          ((prime? count)
+           (iter (+ count 1) (+ count accum)))
+          (else (iter (+ count 1) accum))))
+  (iter 1 0))
+
+(define (sum-primes a b)
+  (accumulate + 0
+              (filter prime? (enumerate-interval a b))))
+
+演算の実行において、最初のプログラムは蓄積される合計のみを格納する必要がある。
+逆に、2つ目のプログラムのフィルタはenumerate-intervalが区間の数の完全なリストを構築するまで一度もテストを行うことができない。
+フィルタは別のリストを生成し、合計を形成するため畳み込まれる前に順にaccumulateに渡される。そのような大きな中間ストレージは最初のプログラムでは必要ない。
+
+ストリームは列をリストとして扱うコストを負担することなく列操作を用いることが可能な賢明な考え。
+ストリームを用いると2つの世界の良い所取りができる。
+
+基本的なアイディアはストリームを部分的にのみ構築する準備をおkのアイ、部分的な構築物をストリームを消費するプログラムに渡す。
+もし消費プログラムがまだ構築されていないストリームの部分にアクセスしようと試みた場合、ストリームは要求された部分を生成するために自動的にそれ自身の十分な追加を構築する。
+したがって、ストリーム全体が存在するという錯覚を維持することが出来る。
+完全な列を処理するようなプログラムを書くが、ストリーム実装に自動的に、透過的にストリームの構築とその使用を相互配置するように設計する。
+表面上では、ストリームはそれを操作するための異なった名前を持つただのリスト。
+コンストラクタcons-streamと以下の制約を満たす2つのセレクタstream-carとstream-cdrが存在する。
+
+(stream-car (cons-stream x y)) = x
+(stream-cdr (cons-stream x y)) = y
+
+判別可能なオブジェクトthe-empty-streamが存在し、これはどんなcons-stream命令の結果にはなりえず、術後stream-null?にて識別できる。
+したがってストリームを作成し、使用して、リストの作成と使用と同様に、順ぶされた列のデータの集約を表現できる。
+
+(define (stream-ref s n)
+  (if (= n 0)
+      (stream-car s)
+      (stream-ref (stream-cdr s) (- n 1))))
+
+(define (stream-map proc s)
+  (if (stream-null? s)
+      the-empty-stream
+      (cons-stream (proc (stream-car s))
+                   (stream-map proc (stream-cdr s)))))
+
+(define (stream-for-each proc s)
+  (if (stream-null? s)
+      'done
+      (begin (proc (stream-car s))
+             (stream-for-each proc (stream-cdr s)))))
+
+(define (display-stream s)
+  (stream-for-each display-line s))
+
+(define (display-line x) (newline) (display x))
+
+ストリームの実装に自動的、かつ透過的にストリームの構築とその使用を相互配置させるためには、ストリームのcdrが、ストリームがcons-streamにより構築された時ではなく、stream-cdr手続きによりアクセスされた時に評価されるように手筈を整える。
+データ抽象化としては、ストリームはリストと同様。違いは要素が評価されるタイミング。
+通常のリストではcarとcdrの両方は構築時に評価される。
+ストリームではcdrは選択時に評価される。
+
+私達のストリームの実装はdelayと呼ばれる特殊形式を元にする。
+(delay <exp>)の評価は式<exp>を評価しない。しかしその代わりにいわゆるdelayed object(遅延オブジェクト)を返す。
+これはある将来の時点で<exp>を評価する"promise"として考えることができる。
+delayの相方としてforceと呼ばれる手続きが存在し、遅延オブジェクトを引数として取り、評価を実行する。
+実際にdelayにその約束を果たさせることを強要する。
+
+cons-streamは特殊形式で
+
+(cons-stream <a> <b>)
+
+上が以下と同じになるよう設計されている。
+
+(cons <a> (delay <b>))
+
+これの意味するところは、私たちはペアを用いてストリームを構築する。しかし、ペアのcdrにストリームの残りの値を置くのではなく、そこにプロミスを起き要求された時点で残りを計算する。
+これでstream-carとstream-cdrが手続きとして定義できる。
+
+(define (stream-car stream) (car stream))
+(define (stream-cdr stream) (force (cdr stream)))
+
+stream-carはペアのcarを選択する。
+stream-cdrはペアのcdrを選択し、そこに見つかった遅延表現を評価し、ストリームの残りを得る。
+
+

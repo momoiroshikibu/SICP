@@ -42,3 +42,62 @@ fibsはそのcarが0で、そのcdrは(fibgen 1 1)を評価するプロミスで
 
 (stream-ref primes 50)
 233
+
+
+暗黙的ストリーム定義
+integersとfibsのストリームは明示的にストリーム要素を1ずつ計算する生成手続きを指定することにより定義された。
+ストリームを指定する代替法として遅延評価の利点を用いて暗黙的にストリームを定義することがあげられる。
+ストリームonesを1つの無限ストリームとして定義する
+(define ones (cons-stream 1 ones))
+
+これは再帰手続きの定義そっくりに動く。
+consはペアでそのcarは1でそのcdrはonesを評価するプロミス。
+cdrの評価は再び1とonesを評価するプロミスを与える。以下繰り返し。
+
+より面白いこととしてストリームをadd-streamのような命令で操作することができる。
+add-streamsは2つの与えられたストリームのエレメントの和を生成する。
+
+(define add-streams (s1 s2) (stream-map + s1 s2))
+
+これで整数を以下のように定義できる。
+(define integers
+  (cons-stream 1 (add-streams ones integers)))
+
+これはintegersが最初の要素は1で残りはonesとintegersの和になる。
+従ってintegersの2つ目の要素は1足すintegersの最初の要素、つまり2になる。
+integersの3つ目の要素は1足すintegersの2つ目の要素、つまり3。この繰り返し。
+この定義は任意の時点で十分なintegersストリームが生成されているので次の整数を生成するために定義にフィードバックすることができるためうまくいく。
+
+(define fibs
+  (cons-stream
+   0
+   (cons-stream 1 (add-streams (stream-cdr fibs) fibs))))
+
+この定義はfibsは0と1で始まるストリームであり、残りのストリームはfibsを自身に1ずつずらして足すことで生成することが出来る。
+
+
+scale-streamはまた別の、そのようなストリーム定義を形成するのに便利な手続き。
+これはストリームの各要素に与えられた定数をかける。
+
+(define (scale-stream stream factor)
+  (stream-map (lambda (x) (* x factor))
+              stream))
+
+2の累乗のストリーム: 1 2 4 8 16 32...
+(define double (cons-stream 1 (scale-stream double 2)))
+素数ストリームの代替定義は整数ではじまり、それらの素数性をテストすることでフィルタリングすることでも与えられる。
+(define primes
+  (cons-stream
+   2
+   (stream-filter prime? (integers-starting-from 3))))
+この定義は見かけほど簡単ではない。
+nが(任意の整数ではなく)√3以下の素数で割り切れるかどうかをチェックすることにより数nが素数であるかを決めるため。
+
+(define (prime? n)
+  (define (iter ps)
+    (cond ((> (square (stream-car ps)) n) true)
+          ((divisible? n (sttream-car ps)) false)
+          (else (iter (stream-cdr ps)))))
+  (iter primes))
+
+これは再帰定義であり、primesがprimesを用いるprime?述語を用いて定義されている。

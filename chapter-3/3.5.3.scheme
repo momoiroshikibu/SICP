@@ -4,3 +4,35 @@
 ストリームのアプローチは私たちに、状態変数への代入の周りに体系化されたシステムよりも、異なるモジュール境界を伴うシステムを構築することを可能にするため、啓発的。
 例えば、私たちは個別の瞬間における状態変数の値としてではなく、時系列全体を興味の中心として考えることが出来る。
 このことが異なる瞬間の状態のコンポーネントの比較と接続を行うのにより便利にする。
+
+
+反復をストリームプロセスとして定式化する
+状態を更新される変数の集合としてではなく、永遠の値のストリームとして表すことが出来る。
+
+(define (sqrt-improve guess x)
+  (average guess (/ x guess)))
+
+sqrt手続きでは、これらの推測値を状態変数の一連の値にした。
+代わりに推測値の無限ストリームを作ることができる。
+
+(define (sqrt-stream x)
+  (define guesses
+    (cons-stream
+     1.0
+     (stream-map (lambda (guess) (sqrt-improve guess x))
+                 guesses)))
+  guesses)
+
+(display-stream (sqrt-stream 2))
+
+今のところ、状態のストリームを使用する取り組みは状態変数を更新するものから大きくは異ならない。
+しかしストリームは面白いトリックを行う機会を提供する。
+例えば、近似値の列を、同じ値に、ただしより早く収束する列に変換するsequence accelerator(列アクセラレータ)を用いてストリームを変換することが出来る。
+
+(define (euler-transform s)
+  (let ((s0 (stream-ref s 0))
+        (s1 (stream-ref s 1))
+        (s2 (stream-ref s 2)))
+    (cons-stream (- s2 (/ (square (- s2 s1))
+                          (+ s0 (* -2 s1) s2)))
+                 (euler-transform (stream-cdr s)))))

@@ -1,0 +1,70 @@
+4.1.1 評価機の核
+
+Eval
+evalは引数として式と環境を取ります。これは式と分類しその評価を監督します。
+evalは評価される式の構文上の方の事例分析として構造化される。
+手続きの一般性を保つため、式の方の決定を抽象的に表現し、多種の式に対するどんな特定の表現にも痛くしない。
+式の各型はそれをテストする述語と、の部分を選択する抽象手段を持つ。
+このabstract syntaxは同じ評価機を用いつつ、異なる構文手続きの集合と合わせることで、言語の文法をどのようにして変更できるかについて知ることを簡単にする。
+
+プリミティブな式
+・数値のような自己評価式に対してはevalは式それ自身を返す。
+
+
+特殊形式
+・クォートされた式に対してはevalはクォートされた式を返す。
+・変数への代入(または定義)は再帰的にevalを呼び出し変数に関連付けられる新しい値を計算しなければならない。
+環境は変数の束縛を変更(または作成)しなければならない。
+
+組み合わせ
+手続きの適用に対して、evalは再帰的に組み合わせの演算子とオペランドの部分を評価しなければならない。
+結果となる手続きと引数はapplyに渡す。
+これは実際の手続き適用を取り扱う。
+
+(define (eval exp env)
+  (cond ((self-evluating? exp) exp)
+        ((variable? exp) (lookup-variable-value exp env))
+        ((quoted? exp) (text-of-quotation exp))
+        ((assignment? exp) (eval-assignment exp env))
+        ((definition? exp) (eval-definition exp env))
+        ((if? exp) (eval-if exp env))
+        ((lambda? exp)
+         (make-procedure (lambda-parameters exp)
+                         (lambda-body exp)
+                         env))
+        ((begin? exp)
+         (eval-sequence (begin-actions pexp) env))
+        ((cond? exp) (eval (cond->if exp) env))
+        ((application? exp)
+         (apply (eval (oeprator exp) env)
+                (list-or-values (operands exp) env)))
+        (else
+         (error "Unknown expression type: EVAL" exp))))
+
+
+明快さのために、evalはcondを用いた条件分岐として実装されている。
+これの欠点は手続きがいくつかの判別可能な式の型のみをとりあつかい、evalの定義を編集することなしに新しい式が定義できないこと。
+多くのLisp実装では式の方に従う呼び出しはデータ的重スタイルにより行われる。
+これはユーザーにevalが判別可能な新しい方の追加を許可する。
+
+Apply
+applyは2つの引数、手続きtお手続きが適用されるべき引数のリストを取る。
+applyは手続きを2つの種類に分類します。
+プリミティブの適用にはapply-primitive-procedureを呼びます。
+複合手続きの適用には手続きのボディを作る式を連続して評価することにより行う。
+複合手続きのボディの評価のための環境は手続きにより運ばれた基礎環境を拡張することで構築し、手つきのパラメータを手続きが適用される引数に束縛するフレームを含める
+
+(define (apply procedure arguments)
+  (cond ((primitive-procedure? procedure)
+         (apply-primitive-procedure procedure arguments))
+        ((compound-procedure? procedure)
+         (eval-sequence
+          (procedure-body procedure)
+          (extend-environment
+           (procedure-parameters procedure)
+           arguments
+           (procedure-environment-procedure))))
+        (else
+         (error
+          "Unknown procedure type: APPLY" procedure))
+        

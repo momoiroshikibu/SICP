@@ -1,0 +1,7 @@
+3.5.4 ストリームと遅延評価
+
+(define int
+  (cons-stream
+   initial-value
+   (add-streams (scale-stream integrand dt)
+                int)))

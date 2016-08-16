@@ -1,0 +1,57 @@
+3.5.5 関数型プログラムのモジュール化とオブジェクトのモジュール化
+
+ストリームモジュールはモジュールの容易性を代入の使用なしに提供可能。
+例としてπのモンテカルロ推定を再実装してみる。
+モジュール化容易性の鍵となる問題は、乱数生成器の内部状態を乱数を使用するプログラムから隠したいと願ったこと。手続きrand-updateから始めました。
+これの連続する値が乱数を供給し、そしてこれを乱数生成器を創りだすのに使用した。
+
+(define rand
+  (let ((x random-init))
+    (lambda ()
+      (set! x (rand-update x))
+      x)))
+
+ストリームの定式化においては乱数生成器が単体では存在しない。
+乱数のストリームがただrand-updateを連続して呼ぶことで生成される。
+
+(define rand-numbers
+  (cons-stream random-init
+               (stream-map rand-update random-numbers)))
+
+これを用いて乱数ストリームにおける連続したペア上で行われたチェザロの実験の結果のストリームを構築する。
+
+(define cesaro-stream
+  (map-successive-pairs
+   (lambda (r1 r2) (= (gcd r1 r2) 1))
+   random-numbers))
+
+(define (map-successive-pairs f s)
+  (cons-stream
+   (f (stream-car s) (stream-car (stream-cdr s)))
+   (map-successive-pairs f (stream-cdr (stream-cdr s)))))
+
+cesaro-streamが次にmonte-carlo手続きに与えられる。
+これは確率の推測のストリームを生成する。
+するとその結果はπの推測値のストリームへと変換される。
+
+(define (monte-carlo experiment-stream passed failed)
+  (define (next passed failed)
+    (cons-stream
+     (/ passed (+ passed failed))
+     (monte-carlo
+      (stream-cdr experiment-stream) passed failed)))
+  (if (stream-car experiment-stream)
+      (next (+ passed 1) failed)
+      (next passed (+ failed 1))))
+
+(define pi
+  (stream-map
+   (lambda (p) (sqrt (/ 6 p)))
+   (monte-carlo cesaro-stream 0 0)))
+
+考慮すべきモジュール化容易性がこの取組には存在する。
+なぜなら依然として任意の実験を取り扱うことが可能な一般的なモンテカルロ手続きを定式化できるため。
+その上、代入やローカル変数が存在しない。
+
+
+

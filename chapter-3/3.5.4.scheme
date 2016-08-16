@@ -5,3 +5,35 @@
    initial-value
    (add-streams (scale-stream integrand dt)
                 int)))
+
+暗黙的定義のようなものを扱うインタプリタの能力はcons-streamに組み込まれているdelayに依存している。
+このdelay無しではインタプリタはintがすでに定義されていることを要件とするcons-streamへの引数両方を評価する前にはintを構築することができませんでした。
+一般的に、delayはストリームを用いてループを含む信号処理システムをモデル化するのに不可欠。
+delay無しでは任意の信号処理コンポーネントへの入力が、出力を生成する前に完全に評価されるように、私達のモデルが定式化されなければならない。
+残念なことに、ループを伴うシステムのストリームモデルはcons-streamにより提供される隠れたdelayを超えて、delayの使用を要求する。
+
+(define (solve f y0 dt)
+  (define y (integral dy y0 dt))
+  (define dy (stream-map f y))
+  y)
+
+この手続はうまくいかない。
+solveの最初の行にてintegralの呼び出しは入力dyが定義されていることを要求する。
+これはsolveの二行目までは起こりえない。
+integralを再定義し、被積分関数ストリームがdelayed argument(遅延引数)を要求するようにする。
+
+(define (integral delayed-integrand initial-value dt)
+  (define int
+    (cons-stream
+     initial-value
+     (let ((integrand (force delayed-integrand)))
+       (add-streams (scale-stream integrand dt)
+                    int))))
+  int)
+
+これでsolve手続きの実装がyの定義内でdyを遅延させればできる。
+(define (solve f y0 dt)
+  (define y (integral (delay dy) y0 dt))
+  (define dy (stream-map f y))
+  y)
+

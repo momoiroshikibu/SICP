@@ -97,3 +97,12 @@ interleaveは2つのストリームから交代に要素を得るため、2つ�
                 (stream-cdr t))
     (pairs (stream-cdr s) (stream-cdr t)))))
 
+
+信号としてのストリーム
+(define (integral integrand initial-value dt)
+  (define int
+    (cons-stream initial-value
+                 (add-streams (scale-stream integrand dt)
+                              int)))
+  int)
+

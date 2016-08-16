@@ -67,4 +67,57 @@ applyは手続きを2つの種類に分類します。
         (else
          (error
           "Unknown procedure type: APPLY" procedure))
-        
+
+
+手続きの引数
+evalが手続き適用を処理するとき、list-of-valuesを用いて手続きが適用される引数のリストを生成します。list-of-valuesは引数として組み合わせのオペランドを取ります。
+各オペランドを評価し対応する値のリストを返します。
+(define (list-of-values exps env)
+  (if (no-operands? exps)
+      '()
+      (cons (eval (first-operand exps) env)
+            (list-of-values (rest-operands exps) env))))
+
+条件文
+eval-ifは与えられた環境においてif式の述語部分を評価します。
+もし結果が真ならeval-ifはconsequent(結果)を評価し、そうでなければalternative(代替)を評価する。
+(define (eval-if exp env)
+  (if (true? (eval (if-predicate exp) env))
+      (eval (if-consequent exp) env)
+      (eval (if-alternative exp) env)))
+eval-if内でのtrue?の使用は実装言語と被実装言語の間の接続の問題を強調します。
+if-predicateは被実装言語にて評価されるのでその言語のあたいを生じます。
+インタプリタの述語true?はその値を実装言語のifでテストできる値に翻訳します。
+真実性のメタ循環表現は根底をなすSchemeのそれとは同じでないかもしれない。
+
+列
+eval-sequenceはapplyにより用いられ手続きのボディの中にある連続した式を評価します。
+またevalでも使用されbegin式の中の一連の式を評価します。
+引数として一連の引数と環境を取り、式が現れる順で評価する。
+返り値は最後の式の値。
+(define (eval-sequence exps env)
+  (cond ((last-exp? exps)
+         (eval (first-exp exps) env))
+        (else
+         (eval (first-exp exps) env)
+         (eval-sequence (rest-exps exps) env))))
+
+代入と定義
+以下の手続きは変数への代入を扱う。
+evalを呼び代入される値を見つけ値と結果となる変数をset-variable-value!へ転送することで指定された環境へ設定されるようにする。
+(define (eval-assignment exp env)
+  (set-variable-value! (assignment-variable exp)
+                       (eval (assignment-value exp) env)
+                       env)
+  'ok)
+
+変数の定義は同様の方法で扱われます。
+(define (eval-definition exp env)
+  (define-variable! (definition-variable exp)
+    (eval (definition-value exp) env)
+    env)
+  'ok)
+
+ここで代入、または定義の値としてシンボルokを返すことにした。
+
+

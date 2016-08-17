@@ -13,3 +13,82 @@
 続く強制は単純に演算を繰り返すこと無く格納された値を返す。
 私たちはインタプリタをメモ化します。
 これはとても多くのアプリケーションに対して効率的。
+
+
+評価機を変更する
+evalとapplyにおける手つき適用の取扱が異なる。
+((application? exp)
+ (apply (actula-value (oeprator exp) env)
+        (operands exp)
+        env))
+
+遅延評価のためにはapplyをオペランド式と共に呼ぶ。
+それらを評価することで生成された引数と共にではない。
+もし引数が遅延化されるのであれば環境にサンクを構築させる必要があるので、これも渡さなければならない。
+依然として演算子は評価する。applyは実際の手続きが必要。
+その型(プリミティブであるか複合であるか)に従って呼び出しと適用を行うため。
+式の実際の値が必要になるたびに、evalするだけの代わりに以下を用いる。
+(define (actual-value exp env)
+  (force-it (eval exp env)))
+
+これでもし式の値がサンクであれば強制される。
+違いはevalが未評価のオペランド式を通り過ぎたこと。
+厳密であるプリミティブな手続きに対してはプリミティブを適用する前にすべての引数を評価する。
+非厳密である複合手続きに対してはすべての引数を手続に適用する前に遅延化する。
+
+(define (apply procedure arguments env)
+  (cond ((primitive-procedure? procedure)
+         (apply-primitive-procedure
+          procedure
+          (list-of-arg-values arguments env))) ;changed
+        ((compound-procedure? procedure)
+         (eval-sequence
+          (procedure-body procedure)
+          (extend-environment
+           (procedure-parameters procedure)
+           (list-of-delayed-args arguments env) ;changed
+           (procedure-environment oprocedure))))
+        (else (error "Unknown procedure type: APPLY" procedure))))
+
+引数を処理する手続きはlist-of-valuesそっくり。
+しかしlist-of-delayed-argsが引数を評価するのでなく遅延化することと、list-of-arg-valuesがevalの代わりにactual-valueを用いることが違う。
+
+(define (list-of-arg-values exps env)
+  (if (no-operands? exps)
+      '()
+      (cons (actual-value (first-operand exps)
+                          env)
+            (list-of-arg-values (rest-operands exps)
+                                env))))
+
+(define (list-of-delayed-args exps env)
+  (if (no-operands? exps)
+      '()
+      (cons (delay-it (first-operand exps)
+                      env)
+            (list-of-delayed-args (rest-operands exps)
+                                  env))))
+
+評価機で変更しなければならない他の場所はifの取り扱いの中にある。
+そこではevalの代わりにactual-valueを使用して述語が真であるか偽であるかテストする前に、述語式の値を取らねばならない。
+
+(define (eval-if exp env)
+  (if (true? (actual-value (if-predicate exp) env))
+      (eval (if-consequent exp) env)
+      (eval (if-alternative exp) env)))
+
+最後に、driver-loop手続きを変更して、evalの代わりにactual-valueを使用せねばならない。
+そうすることでもし遅延化された値がREPLに伝播して帰った場合に、表示される前に強制される。
+
+(define input-prompt ";;; L-Eval input:")
+(define output-prompt ";;; L-Eval value:")
+(define (driver-loop)
+  (prompt-for-input input-prompt)
+  (let ((input (read)))
+    (let ((output
+           (actual-value
+            input the-global-environment)))
+      (announce-output output-prompt)
+      (user-print output)))
+  (driver-loop))
+

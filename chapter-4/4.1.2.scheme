@@ -100,3 +100,46 @@ begin式から実際の列を取り出す命令と同時に、列の最初の式
 (define (no-operands? ops) (null? ops))
 (define (first-operand ops) (car ops))
 (define (rest-operands ops) (cdr ops))
+
+
+派生式
+特殊形式は直接実装されるのではなく、他の特殊形式を含む式を用いて定義できる。
+
+(cond ((> x 0) x)
+      ((= x 0) (display 'zero) 0)
+      (else (- x)))
+
+(if (> x 0)
+    (if (= x 0)
+        (begin (display 'zero) 0)
+        - x))
+
+condの評価をこのように実装することは評価機を簡略化する。
+評価過程が明示的に指定されねばならない特殊形式の数を減らすことができるから。
+condの式の部分を抽出する構文手続きとcond式をif式に変形するcond->ifを含める。
+事例分析はcondではじまり述語-行動節のリストを持つ。
+節はもしその述語がシンボルelseならばelse節。
+(define (cond? exp) (tagged-list? exp 'cond))
+(define (cond-clauses exp) (cdr exp))
+(define (cond-else-clause? clause)
+  (eq? (cond-predicate clause) 'else))
+(define (cond-predicate clause) (car clause))
+(define (cond-actions clause) (cdr clause))
+(define (cond->if exp)
+  (expand-clauses (cond-clauses exp)))
+(define (expand-clauses clauses)
+  (if (null? clauses)
+      'false)
+  (let ((first (car clauses))
+        (rest (cdr clauses)))
+    (if (cond-else-clauses? first)
+        (if (null? rest)
+            (sequence->exp (cond-actions first))
+            (error "ELSE clause isn't last: COND->IF" clauses))
+        (make-if (cond-predicate first)
+                 (sequence->exp (cond-actions first))
+                 (expand-clauses rest)))))
+
+文法t上の変形を実装することを選択したcondのような式は
+derived expressions(派生式)と呼ばれる。letもまた派生式。
+

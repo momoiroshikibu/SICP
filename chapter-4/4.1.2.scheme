@@ -1,0 +1,102 @@
+4.1.2 式の表現
+
+・自己評価アイテムは数値と文字列のみ
+(define (self-evaluating? exp)
+  (cond ((number? exp) true)
+        ((string? exp) true)
+        (else false)))
+
+・変数はシンボルにより表現される
+(define (variable? exp)
+  (symbol? exp))
+
+・引用は(quote <text-of-quotation>)の形式を持つ
+(define (quoted? exp) (tagged-list? exp 'quote))
+(define (text-of-quotation exp) (cadr exp))
+
+quoted?は手続きtagged-list?を用いて定義される。
+これはリストが指定されたシンボルで開始するかを判断する。
+(define (tagged-list? exp tag)
+  (if (pair? exp)
+      (eq? (car exp) tag)
+      false))
+
+・代入は(set! <var> <value>)の形式を取る
+(define (assignment? exp) (tagged-list? exp 'set!))
+(define (assignment-variable exp) (cadr exp))
+(define (assignment-value exp) (caddr exp))
+
+・定義は以下の形式を取る
+(define <var> <value>)
+または
+(define (<var> <parameter1> ... <parametern>)
+  <body>)
+
+後者の形式は以下に対する構文糖。
+(define <var>
+  (lambda (<parameter1> ... <parametern>)
+    <body>))
+
+対応する構文手続きは以下となる。
+(define (definition? exp)
+  (tagged-list? exp 'define))
+(define (definition-variable exp)
+  (if (symbol? (cadr exp))
+      (cadr exp)
+      (caadr exp)))
+(define (definition-value exp)
+  (if (symbol? (cadr exp))
+      (caddr exp)
+      (make-lambda (cdadr exp)    ; formal parameters
+                   (cddr exp))))  ; body
+
+・lambda式はシンボルlambdaで始まるリスト
+(define (lambda? exp) (tagged-list? exp 'lambda))
+(define (lambda-parameters exp)
+  (cadr exp))
+(define (lambda-body exp)
+  (caddr exp))
+
+またlambda式に対するコンストラクタも提供する。
+(define (make-lambda parameters body)
+  (cons 'lambda (cons parameters body)))
+
+・条件式はifではじまり述語、結果式を持ち、任意で代替式を持つ。
+もし代替式の部分を持たないのであれば代替式としてfalseを与える。
+(define (if? exp) (tagged-list? exp 'if))
+(define (if-predicate exp) (cadr exp))
+(define (if-consequent exp) (caddr exp))
+(define (if-alternative exp)
+  (if (not (null? (cdddr exp)))
+      (cadddr exp)
+      'false))
+
+またif式に対するコンストラクタも提供する。
+これはcond-ifによりcond式をif式に変換するのに用いられる。
+(define (make-if predicate consequent alternative)
+  (list 'if predicate consequent alternative))
+
+・beginは一連の式を1つの式へとまとめる。
+begin式から実際の列を取り出す命令と同時に、列の最初の式とその残りの式を返すセレクタも含まれる。
+(define (begin? exp) (tagged-list? exp 'begin))
+(define (begin-actions exp) (cdr exp))
+(define (last-exp? seq) (null? (cdr seq)))
+(define (first-exp seq) (car seq))
+(define (rest-exps seq) (cdr seq))
+
+またcond-ifで用いるコンストラクタsequence->expも含める。
+これは列を単一の式に、必要ならばbeginを用いて変換する。
+(define (sequence->exp seq)
+  (cond ((null? seq) seq)
+        ((last-exp? seq) (first-exp seq))
+        (else (make-begin seq))))
+(define (make-begin seq) (cons 'begin seq))
+
+・手続きの適用は上記の式の型ではない任意の複合式。
+その指揮のcarはオペレーターであり、cdrはオペランドのリスト。
+(define (application? exp) (pair? exp))
+(define (operator exp) (car exp))
+(define (operands exp) (cdr exp))
+(define (no-operands? ops) (null? ops))
+(define (first-operand ops) (car ops))
+(define (rest-operands ops) (cdr ops))

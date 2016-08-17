@@ -1,0 +1,93 @@
+4.1.4 評価機をプログラムとして実行する
+
+各プリミティブな手続きの名前の束縛が存在しなければならない。
+そのためevalがプリミティブの適用の命令を評価するとき、applyに渡すオブジェクトを見つける。
+従って私たちは評価しようとする式の中に現れることが可能なプリミティブな手続きの名前と独自のオブジェクトを関連付けするグローバル環境を設定する。
+グローバル環境はまたシンボルtrueとfalseのための束縛も含める。
+そうすることでそれらが評価される式の中で変数として利用することができる。
+
+(define (setup-environment)
+  (let ((initial-env
+         (extend-environment (primitive-procedure-names)
+                             (primitive-procedure-objects)
+                             the-empty-environment)))
+    (define-variable! 'true true initial-env)
+    (define-variable! 'false false initial-env)
+    initial-env))
+
+(define the-global-environment (setup-environment))
+
+どのようにプリミティブ手続きオブジェクトを評価するかは、applyがそれらを手続きprimitive-procedure?とapply-primitive-procedureを用いて判別できる限り問題ではない。
+私たちはプリミティブな手続きをシンボルprimitiveではじまり、そのプリミティブを実装する低層のLispの手続きを含むリストとして表現することを選択した。
+
+(define (primitive-procedure? proc)
+  (tagged-list? proc 'primitive))
+(define (primitive-implementation proc) (cadr proc))
+
+setup-environmentはプリミティブの名前と実装手続きをリストから得る。
+(define primitive-procedures
+  (list
+   (list 'car car)
+   (list 'cdr cdr)
+   (list 'cons cons)
+   (list 'null? null?)
+   <more primitives>))
+(define (primitive-procedure-names)
+  (map car primitive-procedures))
+(define (primitive-procedure-objects)
+  (map (lambda (proc) (list 'primitive (cadr proc)))
+       primitive-procedures))
+
+プリミティブ手続きを適用するためには単純に実装手続きを引数に対して低層のLispシステムを用いて適用する。
+
+(define (apply-primitive-procedure proc args)
+  (apply-in-underlying-scheme
+   (primitive-implementation proc) args))
+
+メタ循環評価機実行時の利便性のために、低層のLispシステムのread-eval-primt-loopをモデルにしたdriver loopを提供する。
+これはpromptを表示し、入力式を読み込み、この指揮をグローバル環境の中で評価し、結果を表示します。
+各表示された結果の前にoutput prompt(出力プロンプト)を置く。
+そうすることで式の値を他の表示されるかもしれない出力から判別するため。
+
+(define input-prompt ";;; M-Eval input:")
+(define output-prompt ";;; M-Eval value:")
+(define (driver-loop)
+  (prompt-for-input input-prompt)
+  (let ((input (read)))
+    (let ((output (eval input the-global-environment)))
+      (announce-output output-prompt)
+      (user-print output)))
+  (driver-loop))
+
+(define (prompt-for-input string)
+  (newline) (newline) (display string) (newline))
+
+(define (announce-output string)
+  (newline) (display string) (newline))
+
+user-printは複合手続きの艦橋部分を表示するのを防ぐため。
+これはとても長いリストになり得る。
+
+(define (user-print object)
+  (if (compound-procedure? object)
+      (display (list 'compound-procedure
+                     (procedure-parameters object)
+                     (procedure-body object)
+                     '<procedure-env>))
+      (display object)))
+
+これで評価機を実行するのに必要なことはグローバル環境の初期化とドライバーループの開始のみ。
+
+(define the-global-environment (setup-environment))
+(driver-loop)
+;;; M-Eval input:
+(define (append x y)
+  (if (null? x)
+      y
+      (cons (car x) (append (cdr x) y))))
+;;; M-Eval value:
+ok
+;;; M-Eval-input:
+(append '(a b c) '(d e f))
+;;; M-Eval-value:
+(a b c d e f)

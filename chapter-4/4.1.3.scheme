@@ -28,3 +28,104 @@
 (define (procedure-environment p) (cadddr p))
 
 
+環境上の命令
+評価機は環境を操作する命令を必要とする。
+環境は連続するフレームであり、各フレームは変数をその対応する値に関連付ける束縛のテーブル。
+
+(lookup-variable-value <var> <env>)
+環境<env>内でシンボル<var>に束縛された値を返す。
+または変数が束縛されていない場合はエラーを発する。
+
+(extend-environment <variables> <values> <base-env>)
+新しいフレームからなる環境を返す。
+フレームの中ではリスト<variables>中のシンボルがリスト中<values>の対応する要素に束縛される。
+取り囲む環境は<base-env>
+
+(define-variable! <var> <value> <env>)
+環境<env>の最初のフレームに<var>を値<value>に関連付ける新しい束縛を追加する。
+
+(set-variable-value! <var> value> <env>)
+環境<env>内の変数<var>の束縛を変更し、その変数が新しく値<value>に束縛されるようにする。
+またはもし変数が束縛されていない場合にはエラーを発する。
+
+これらを実装するためには環境をフレームのリストとして表現する。
+環境を内包する環境はリストのcdr。空の環境は単純に空リスト。
+(define (enclosing-environment env) (cdr env))
+(define (first-frame env) (car env))
+(define the-empty-environment '())
+
+環境の各フレームはリストのペアとして表現される。
+フレームに束縛される変数のリストと対応する値のリスト。
+(define (make-frame variables values)
+  (cons variables values))
+(define (frame-variables frame) (car frame))
+(define (frame-values frame) (cdr frame))
+(define (add-binding-to-frame! var val frame)
+  (set-car! frame (cons var (car frame)))
+  (set-cdr! frame (cons val (cdr frame))))
+
+環境を変数を値に関連付ける新しいフレームにより拡張するために、変数のリストと値のリストからなるフレームを作成します。
+そしてその環境に隣接させる。
+もし変数の数が値の数に合わない場合はエラーを発生する。
+
+(define (extend-environment vars vals base-env)
+  (if (= (length vars) (length vals))
+      (cons (make-frame vars vals) base-env)
+      (if (< (length vars) (length vals))
+          (error "Too many arguments supplied" vars vals)
+          (error "Too few arguments supplied" vars vals))))
+
+環境内の変数をさあgすためには、最初のフレームの変数のリストを走査する。
+希望の変数を見つければ対応する値リスト内の要素を返す。
+もし現在のフレーム内にその変数が見つからなければ内包する環境を探す。
+以下、繰り返し。
+もし空環境までたどり着いたならば、束縛されていない変数のエラーを発生する。
+
+(define (lookup-variable-value var env)
+  (define (env-loop env)
+    (define (scan vars vals)
+      (cond ((null? vars)
+             (env-loop (enclosing-environment env)))
+            ((eq? var (car vars)) (car vals))
+            ((else (scan (cdr vars) (cdr vals))))))
+    (if (eq? env the-empty-environment)
+        (error "Unbound variable" var)
+        (let ((frame (first-frame env)))
+          (scan (frame-variables frame)
+                (frame-values frame)))))
+  (env-loop env))
+
+変数に新しい値を指定された環境にて設定するには、lookup-variable-valueと同様に変数を走査し、対応する見つかった場合には対応する値を変更する。
+(define (set-variable-value! var val env)
+  (define (env-loop env)
+    (define (scan vars vals)
+      (cond ((null? vars)
+             (env-loop (enclosing-environment env)))
+            ((eq? var (car vars)) (set-car! vals val))
+            (else (scan (cdr vars) (cdr vals)))))
+    (if (eq? env the-empty-environment)
+        (error "Unbound variable: SET!" var)
+        (let ((frame (first-frame env)))
+          (scan (frame-variables frame)
+                (frame-values frame)))))
+  (env-loop env))
+
+変数を定義するには、最初にその変数の束縛を最初のフレームにて探す。
+束縛が存在知れば変更を行う。
+そのような束縛がなければ最初のフレームに追加する。
+(define (define-variable! var val env)
+  (let ((frame (first-frame env)))
+    (define (scan vars vals)
+      (cond ((null? vars)
+             (add-binding-to-frame! var val frame))
+            ((eq? var (car vars)) (set-car! vals val))
+            (else (scan (cdr vars) (cdr vals)))))
+    (scan (frame-variables frame) (frame-values frame))))
+
+実運用品質のLispシステムでは評価機の環境向け命令のスピードが-特に変数探索の物が-システムのパフォーマンスに主に影響を与える。
+ここで説明された表現は概念上シンプルだが効率的ではなく通常は実運用システムでは用いられない。
+
+この表現の欠点は評価機が与えられた変数を見つけるために数多くのフレームを探索しなければならないかも知れない点。
+このような取り組み方はdeep binding(深い束縛)と参照される。
+この非効率性を防ぐ1つの方法はlexical addressingとよばれる。
+

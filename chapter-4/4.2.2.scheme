@@ -92,3 +92,40 @@ evalとapplyにおける手つき適用の取扱が異なる。
       (user-print output)))
   (driver-loop))
 
+サンクの表現
+手続きが引数に適用される時にサンクを作成することと、これらのサンクを後で強制することの準備をする。
+サンクは式を環境と一緒にまとめなければならない。そうすることで引数が後から生成されることができる。
+サンクを強制するためには単純に式と環境をサンクから取り出しその環境の中で式を評価する。
+evalではなくactual-valueを用いることで式の値それ自身がサンクである場合にその強制をサンクでないものにたどり着くまで繰り返す。
+
+(define (force-it obj)
+  (if (thunk? obj)
+      (actual-value (thunk-exp obj) (thunk-env obj))
+      obj))
+
+式と環境をまとめる1つの簡単な方法はその式と環境を含むリストを作成すること。
+
+(define (delay-it exp env)
+  (list 'thunk exp env))
+(define (thunk? obj)
+  (tagged-list? obj 'thunk))
+(define (thunk-exp thunk) (car thunk))
+(define (thunk-env thunk) (caddr thunk))
+
+メモ化されたサンクが必要。サンクが強制された時に格納された式とその値に置き換えthunkタグを変更することでサンクをサンクが評価されたものに変更することで、すでに評価されたと認識することができる。
+(define (evaluated-thunk? obj)
+  (tagged-list obj 'evaluated-thunk))
+(define (thunk-value evaluated-thunk)
+  (cadr evaluated-thunk))
+(define (force-it obj)
+  (cond ((thunk? obj)
+         (let ((result (actual-value (thunk-exp obj)
+                                     (thunk-env obj))))
+           (set-car! obj 'evaluated-thunk)
+           (set-car! (cdr obj)
+                     result) ;expをその値で置き換える
+           (set-cdr (cdr obj)
+                    '())
+           result))
+        ((evaluated-thunk? obj) (thunk-value obj))
+        (else obj)))

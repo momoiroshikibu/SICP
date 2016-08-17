@@ -1,0 +1,43 @@
+4.2.3 遅延化リストとしてのストリーム
+
+遅延評価ではストリームとリストは同一にできる。
+そのため特殊形式やリストとストリームの命令を分ける必要はない。
+全てはconsが非厳密になるよう問題を準備すること。
+これを達成する1つの方法は遅延評価を拡張しプリミティブにも非厳密を許しconsをこれらの1つとすること。
+consをプリミティブとして実装する必要性は本質的には全く無い。
+その代わりに、ペアは手続きとして表現可能。
+(define (cons x y) (lambda (m) (m x y)))
+(define (car z) (z (lambda (p q) p)))
+(define (cdr z) (z (lambda (p q) q)))
+
+これらの基本的な命令において、リスト命令の標準定義は無限リスト(ストリーム)と同様に有限なものとしても働く。
+そしてストリーム命令はリスト命令として実装可能。
+(define (list-ref items n)
+  (if (= n 0)
+      (car items)
+      (list-ref (cdr items) (- n 1))))
+(define (map proc items)
+  (if (null? items)
+      '()
+      (cons (proc (car items)) (map proc (cdr items)))))
+(define (scale-list items factor)
+  (map (lambda (x) (* x factor)) items))
+
+(define (add-lists list1 list2)
+  (cond ((null? list1) list2)
+        ((null? list2) list1)
+        (else (cons (+ (car list 1) (car list2))
+                    (add-lists (cdr list1) (cdr list2))))))
+(define ones (cons 1 ones))
+(define integers (cons 1 (add-lists ones integers)))
+
+(list-ref integers 17)
+
+
+これらの遅延リストは先のストリームよりもさらに遅延化されている。
+リストのcarもcdrと同様に遅延化される。
+実際に、遅延化ペアのcarやdrに対するアクセスさえもリスト要素の値を強制する必要はない。
+その値はそれが本当に必要になった場合-例えばプリミティブの引数としてや回答として表示されるときに-強制されることになる。
+遅延化ペアはまた、先のストリームに対して提起された問題にたいする手助けにもなる。
+その時はループを伴うシステムのストリームモデルを定式化することは明示的なdelay命令をcons-streamで提供されるものを超えてプログラムの中に撒き散らすことを必要とした。
+遅延評価ではすべての手続の引数は遅延化に統一されている。

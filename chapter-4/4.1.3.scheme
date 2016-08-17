@@ -1,0 +1,30 @@
+4.1.3 評価機のデータ構造
+式の外側の文法を定義するのに加えて、評価機の実装は評価機が内部的に操作するデータ構造もプログラムの実行の一部として、手続きと環境の表現やtrueとfalseの表現を定義しなければなりません。
+
+述語のテスト
+条件節に対しては真になるものはすべて受け入れます。
+真とは明示的なflaseオブジェクトではないもの。
+
+(define (true? x) (not (eq? x false)))
+(define (false? x) (eq? x false))
+
+
+手続きの表現
+プリミティブを扱うために、以下の手続きが利用可能であると仮定する。
+(apply-primitive-procedure <proc> <args>)
+与えられたプリミティブな手続きをリスト<args>中の引数に適用し、適用の結果を返す。
+
+(primitive-procedure? <proc>)
+<proc>がプリミティブな手続きであるかどうかを確認する。
+
+複合手続きはパラメタ、手続きのボディk，環境からコンストラクタmake-procedureを用いて構築される。
+
+(define (make-procedure parameters body env)
+  (list 'procedure parameters body env))
+(define (compound-procedure? p)
+  (tagged-list? p 'procedure))
+(define (procedure-parameters p) (cadr p))
+(define (procedure-body p) (caddr p))
+(define (procedure-environment p) (cadddr p))
+
+

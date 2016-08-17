@@ -1,0 +1,130 @@
+4.1.7 構文分析を実行から分離する
+
+評価機を変形し構文上の分析をたった1度のみ実行されるように準備することで著しく効率を良くすることができる。
+式と環境を取るevalを2つにわける。
+手つきanalyzeは式のみを取る。
+構文上の分析を行い新しい手続きexecution procedure(実行手続き)を返す。
+この手続は分析された式を実行するにおいて行われた結果をカプセル化する。
+実行手続きは環境を引数として取り評価を完了する。
+これは実行手続きが何度も呼ばれるのに対し、analyzeが式に対して1度しか呼ばれないために作業量を減らせる。
+(define (eval exp env)
+  ((analyze exp) env))
+
+analyzeの呼び出しの結果は環境に適用される実行手続き。
+analyze手続きは元のevalにより実行されたのと同じ状況分析。
+(define (analyze exp)
+  (cond ((self-evaluating? exp)
+         (analyze-self-evaluating exp))
+        ((quoted? exp)
+         (analyze-quoted exp))
+        ((variable? exp)
+         (analyze-variable exp))
+        ((assignment? exp)
+         (analyze-assignment exp))
+        ((definition? exp)
+         (analyze-definition exp))
+        ((if? exp)
+         (analyze-if exp))
+        ((lambda? exp)
+         (analyze-lambda exp))
+        ((begin? exp)
+         (analyze-sequence (begin-actions exp)))
+        ((cond? exp)
+         (analyze (cond->if exp)))
+        ((application? exp)
+         (analyze-application exp))
+        (else
+         (error "Unknown expression type: ANALYZE"))))
+
+以下に最も簡単な構文分析手続きがある。
+これは自己評価式。
+環境引数を無視し、ただし気を返す実行手続きを返す。
+(define (analyze-self-evaluating exp)
+  (lambda (env) exp))
+
+クォートされた式に対してはそのテキストの取り出しを実行フェーズではなく、分析フェーズで一度だけ行うことでほんの少しだけ効率を良くすることが出来る。
+(define (analyze-quoted exp)
+  (let ((qval (text-of-quotation exp)))
+    (lambda (env) qval)))
+
+変数の値の探索は依然として実行フェーズで行わなければならない。
+これは環境を知ることに依存するため。
+(define (analyze-variable exp)
+  (lambda (env) (lookup-variable-value exp env)))
+
+analyze-assignmentもまた実際の変数の設定を環境の供給が完了する実行時まで遅らせなければならない。
+しかしassignment-value式が分析の間に(再帰的に)分析されることができることは効率を大きく向上する。
+assignment-value式は今はただ1度しか分析されないため。
+
+(define (analyze-assignment exp)
+  (let ((var (assignment-variable exp))
+        (vproc (analyze (assignment-value exp))))
+    (lambda (env)
+      (set-variable-value! var (vproc env) env)
+      'ok)))
+
+(define (analyze-definition exp)
+  (let ((var (definition-variable exp))
+        (vproc (analyze (definition-value exp))))
+    (lambda (env)
+      (define-variable! var (vproc env) env)
+      'ok)))
+
+
+if式に対しては分析時に述語、結果、代替を取り出し分析します。
+(define (analyze-if exp)
+  (let ((pproc (analyze (if-predicate exp)))
+        (cproc (analyze (if-consequent exp)))
+        (aproc (analyze (if-alternative exp))))
+    (lambda (env) (if (true? (pproc env)
+                             (cproc env)
+                             (aproc env))))))
+
+lambda式の分析もまた効率が大きく向上します。
+lambdaのボディは1度しか分析しません。
+たとえlambdaの評価の結果としての手続きが何度適用されても。
+(define (analyze-lambda exp)
+  (let ((vars (lambda-parameters exp))
+        (bproc (analyze-sequence (lambda-body exp))))
+    (lambda (env) (make-procedure vars bproc env))))
+
+(beginやlambda式のボディの中としての)式の列の評価の分析はより必要とされます。
+列の各式は分析され実行手続きを生じます。
+これらの実行手続きは環境を引数として取り順番に各戸別の実行手続きを引数としての環境とともに呼び出す実行手続きを生成するために組み合わされます。
+(define (analyze-sequence exps)
+  (define (sequentially proc1 proc2)
+    (lambda (env) (proc1 env) (proc2 env)))
+  (define (loop first-proc rest-procs)
+    (if (null? rest-procs)
+        first-proc
+        (loop (sequentially first-proc (car rest-procs))
+              (cdr rest-procs))))
+  (let ((procs (map analyze exps)))
+    (if (null? procs) (error "Empty sequence: ANALYZE"))
+    (loop (car procs) (cdr procs))))
+
+適用を分析するためには、演算子とオペランドを分析し、演算子の実行手続きを(実際に適用される手続きを得るために)呼び出し、オペランドの実行手続きを(実際の引数を得るために)呼び出す実行手続きを構築します。
+次にこれらをexecute-applicationに渡します。
+applyとは複合手続きのための手続きのボディがすでに分析されている点が異なる。
+そのためさらなる分析の必要がない。
+その代わりに、ただ拡張された環境上のボディに対して手続き実行を呼び出す。
+(define (analyze-application exp)
+  (let ((fproc (analyze (operator exp)))
+        (aprocs (map analyze (operands exp))))
+    (lambda (env)
+      (execute-application
+       (fpro env)
+       (map (lambda (aproc) (aproc env))
+            aprocs)))))
+
+(define (execute-application proc args)
+  (cond ((primitive-procedure? proc)
+         (apply-primitive-procesure proc args))
+        ((compound-procedure? proc)
+         ((procedure-body proc)
+          (extend-environment
+           (procedure-parameters proc)
+           args
+           (procedure-environment proc))))
+        (else
+         (error "Unknown procedure type: EXECUTE-APPLICATION" proc))))

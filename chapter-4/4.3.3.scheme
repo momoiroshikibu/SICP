@@ -166,3 +166,43 @@ analyze-ifにより生成される実行手続きは述語実行手続きpproc�
         (error "Empty sequence: ANALYZE"))
     (loop (car procs) (cdr procs))))
 
+
+定義と代入
+定義は継続を管理するために手間をかけなければならない一例。
+定義の値(definition-value)の式を実際に新しい値を定義する前に評価する必要が有るため。
+これを達せうするためには定義値実行手続きvprocが環境、成功継続、失敗継続と共に呼ばれる。
+もしvprocの実行が成功したならば定義値のための値valを取得し、変数が定義され成功が伝播される。
+(define (analyze-definition exp)
+  (let ((var (definition-variable exp))
+        (vproc (analyze (definition-value exp))))
+    (lambda (env succeed fail)
+      (vproc env
+             (lambda (val fail2)
+               (define-variable! var val env)
+               (succeed 'ok fail2))
+             fail))))
+
+代入は継続をたらい回しにするのではなく、本当に継続を使用する最初の場所。
+代入のための実行手続きは定義のためのものと同様に開始する。最初に変数に代入される新しい値を取得しようと試みる。
+もしこのvprocの評価が失敗したら代入は失敗する。
+しかしvprocが成功し代入を行おうとした場合には、この計算の分岐が後に失敗する可能性について考えねばならない。
+この場合には代入から外れてバックトラックする必要がある。
+従ってこの代入をバックトラック処理の一部分として取り消しする準備をしなければならない。
+これはvprocに成功継続を与えることで達成される。
+この成功継続は新しい値を代入し、結果として存在する前に、変数の古い値を保持する。
+代入値と共に渡された失敗継続は失敗を続ける前に変数の古い値を再格納する。
+つまり、代入の成功は後の失敗に割り込む失敗継続を提供する。
+
+(define (analyze-assignment exp)
+  (let ((var (assignment-variable exp))
+        (vproc (analyze (assignment-value exp))))
+    (lambda (env succeed fail)
+      (vproc env
+             (lambda (val fail2)
+                  (let (old-value (lookup-variable-value var env)))
+                  (set-variable-value! var val env)
+                  (succeed 'ok
+                           (lambda ()
+                             (set-variable-value! var old-value env)
+                             (fail2))))
+             fail))))

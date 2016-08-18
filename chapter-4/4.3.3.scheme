@@ -206,3 +206,55 @@ analyze-ifにより生成される実行手続きは述語実行手続きpproc�
                              (set-variable-value! var old-value env)
                              (fail2))))
              fail))))
+
+
+手続きの適用
+オペランドを評価するに従い成功と失敗の継続を追跡する必要がある。
+通常の評価機の中のように単純にmapを使うのではなく、手続きget-argsを用いてオペランドのリストを評価する。
+(define (analyze-application exp)
+  (let ((fproc (analyze (operator exp)))
+        (aprocs (map analyze (operands exp))))
+    (lambda (env succeed fail)
+      (fproc env
+             (lambda (proc fail2)
+               (get-args aprocs
+                         env
+                         (lambda (args fail3)
+                           (execute-application
+                            proc args succeed fail3))
+                         fail2))
+             fail))))
+
+get-argsの中では、のようにしてaproc実行手続きのリストをcdrで下り、そして結果のargsのリストをすべてconsするかについて注意。
+これはリストの中のaprocを、再帰的にget-argsを呼ぶ成功継続と共に呼ぶことにより達成される。
+これらのget-argsに対するすべての再帰的呼び出しは、蓄積された引数のリストの上に新しく取得された引数をconsした値を返す成功継続を持っている。
+(define (get-args aprocs env succeed fail)
+  (if (null? aprocs)
+      (succeed '() fail)
+      ((car aprocs)
+       env
+       ;; このaprocのための成功継続
+       (lambda (arg fail2)
+         (get-args
+          (cdr aprocs)
+          env
+          ;; get-args再帰呼び出しのための成功継続
+          (lambda (args fail3)
+            (succeed (cond arg args) fail3))
+          fail2))
+       fail)))
+
+execute-applicationにより実行される実際の手続き適用は通常の評価機に対するものと同じ方法にて達成されるが、継続の管理の必要が異なる。
+(define (execute-application proc args succeed fail)
+  (cond ((primitive-procedure? proc)
+         (succeed (apply-primitive-procedure proc args)
+                  fail)
+         ((compound-procedure? proc)
+          (procedure-body proc)
+          (extend-environment
+           (procedure-parameters proc)
+           args
+           (procedure-environment proc))
+          succeed
+          fail))
+        (else (error "Unknown procedure type: EXECUTE-APPLICATION" proc))))

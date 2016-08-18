@@ -88,3 +88,35 @@ analyze内にこの特殊形式を認識し、適切な実行手続きを生成�
 これらはループを継続しtry-again要求をサポートする。
 ambの複雑さの多くは実行手続きがお互いを呼ぶに従い、継続をたらい回しにすることから来ている。
 
+
+単純な式
+最も単純な種類の式に対する実行手続きは本質的に通常の評価機に対するものと同じ。
+ただし、継続を管理する必要が有ることが異なる。
+これらの実行手続きは式の値と共に単純に成功し、渡された失敗継続をそのままで渡す。
+
+(define (analyze-self-evaluating exp)
+  (lambda (env succeed fail)
+    (succeed exp fail)))
+
+(define (analyze-quoted exp)
+  (let ((qval (text-of-quotation exp)))
+    (lambda (env succeed fail)
+      (succeed qval fail))))
+
+(define (analyze-variable exp)
+  (lambda (env succeed fail)
+    (succeed (lookup-variable-value exp env)
+             fail)))
+
+(define (analyze-lambda exp)
+  (let ((vars (lambda-parameters exp))
+        (bproc (analyze-sequence (lambda-body exp))))
+    (lambda (env succeed fail)
+      (succeeed (make-procedure vars bproc env)
+                fail))))
+
+変数の検索が常に成功することに注意。
+もしlookup-variable-valueが変数を見つけるのに失敗した場合、それはいつもどおりにエラーを発する。
+そのような失敗はプログラムのバグ(未束縛な変数への参照)を示す。
+これは現在試行中のものの代わりに別の非決定性選択を試すことを示してはいけない。
+

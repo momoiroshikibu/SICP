@@ -1,0 +1,135 @@
+4.3.2 非決定性プログラムの例
+
+非決定性プログラミングの利点は探索がどのように実行されるのかについての詳細を隠すことができること。
+従って抽象の高いレベルにてプログラムを表現できる。
+
+論理パズル
+(define (multiple-dwelling)
+  (let ((baker    (amb 1 2 3 4 5))
+        (cooper   (amb 1 2 3 4 5))
+        (fletcher (amb 1 2 3 4 5))
+        (miller   (amb 1 2 3 4 5))
+        (smith    (amb 1 2 3 4 5)))
+    (require
+     (distinct? (list baker cooper fletcher miller smith)))
+    (require (not (= baker 5)))
+    (require (not (= cooper 1)))
+    (require (not (= fletcher 5)))
+    (require (not (= fletcher 1)))
+    (require (> miller cooper))
+    (require (not (= (abs (- smith fletcher)) 1)))
+    (require (not (= (abs (fletcher cooper)) 1)))
+    (list (list 'baker baker)
+          (list 'cooper cooper)
+          (list 'fletcher fletcher)
+          (list 'miller miller)
+          (list 'smith smith))))
+
+この簡単な手続きはうまくいくが遅い。
+
+
+自然言語の構文解析
+自然言語を入力として受け入れるよう設計されたプログラムは通常、その入力をparseすることから始める。
+つまり入力をある文法構造に対して合わせること。
+例えば冠詞と続く名詞、続く動詞からなる簡単な文"The cat eats."のようなものを認識しようとしているとする。
+そのような分析を達成するためには個別の単語の品詞を判別できなければならない。
+多種の単語を判別できるいくつかのリストからはじめることができる。
+
+(define nouns '(noun student professor cat class))
+(define verbs '(verb studies lectures eats sleeps))
+(define articles '(article the a))
+
+またgrammerも必要。つまり、文法上の要素がどのようにより簡単な要素から組み立てられるのかを説明するルールの集合。
+(sentence (noun-phrase (articke the) (nown cat))
+          (verb cats))
+
+そのようなパースを、手続きを各文法上のルールに分割する簡単なプログラムを用いて生成することができる。
+文をぱーすするためには、それを構成する2つの要素を判別し、これらの2つの要素のリストをシンボルsentenceのタグをつけて返す。
+(define (parse-sentence)
+  (list 'sentence
+        (parse-noun-phrase)
+        (parse-word verbs)))
+
+名詞句も同様に定冠詞とそれに続く名詞を見つけることでパースされる。
+(define (parse-noun-phrase)
+  (list 'noun-phrase
+        (parse-word articles)
+        (parse-word nouns)))
+
+最も低いレベルでは、パースとは繰り返し次のパースされていない単語が必要とされる品詞のための単語のリストのメンバーであるかをチェックすること。
+これを実装するために、グローバル変数*unparsed*を持つ。
+これはまだパースされていない入力。単語をチェックする各時点で*unparsed*が空ではないことを要求し、また指定されたリストの単語で始まることを要求します。
+もしそうであるならその単語を*unparsed*から削除し、その単語をその品詞(これはリストの先頭に見つかります)と共に返す。
+(define (parse-word word-list)
+  (require (not (null? *unparsed*)))
+  (require (memq (car *unparsed*) (cdr word-list)))
+  (let ((found-word (car *unparsed*)))
+    (set! *unparsed* (cdr *unparsed*))
+    (list (car word-list) found-word)))
+
+パースを始めるために行わなければいけないこと全ては*unparsed*に入力全体を設定し、文のパースを試み、何も残っていないことをチェックすること。
+(define *unparsed* '())
+(define (parse input)
+  (set! *unparsed* input)
+  (let ((sent (parse-sentence)))
+    (require (null? *unparsed*)) sent))
+
+これでパーザーを試し、簡単なテスト分に対してうまく働くことを確認することができる。
+(parse '(the cat eats))
+(sentence (noun-phrase (article the) (noun cat)) (verb eats))
+
+amb評価機はここでとても役に立つ。reuqireの助けを用いてパースする上での制約を表現するのにとても便利。
+しかし自動的な探索とバックトラックが本当に効果を生むのはより複雑な文法について考えた時に、1つの単位の分解方法に多数の選択肢が存在する場合。
+
+(define prepositions '(prep for th in by with))
+
+そして全治地区を名詞句の前の前置詞として定義する。
+(define (parse-prepositional-phrase)
+  (list 'prep-phrase
+        (parse-word prepositions)
+        (parse-noun-phrase)))
+
+これで文は名詞句に動詞句が続くと定義でき、動詞句は動詞か、または前置詞句で拡張された動詞句となる。
+(define (parse-sentence)
+  (list 'sentence (parse-noun-phrase) (parse-verb-phrase)))
+(define (parse-verb-phrase)
+  (define (maybe-extend verb-phrase)
+    (amb verb-phrase
+         (maybe-extend
+          (list 'verb-phrase
+                verb-phrase
+                (phrase-prepositional-phrase)))))
+  (maybe-extend (parse-word verbs)))
+
+ここまでを行っている間に、名詞句の定義に"a cat in the class"のようなものを認めるよう詳細を詰めることができる。
+今まで名詞句と読んでいてものはこれからはシンプルな名詞句と呼びます。
+そして名詞句はこれからシンプルな名詞句か前置詞句で拡張した名詞句となる。
+
+(define (phrase-simple-noun-phrase)
+        (list 'simple-noun-phrase
+              (parse-word articles)
+              (parse-word nouns)))
+(define (parse-noun-phrase)
+  (define (maybe-extend noun-phrase)
+    (amb noun-phrase
+         (maybe-extend
+          (list 'noun-phrase
+                noun-phrase
+                (parse-prepositional-phrase)))))
+  (maybe-extend (parse-simple-noun-phrase)))
+
+(parse '(the student with the cat sleeps in the class))
+
+(sentence
+ (noun-phrase
+  (simple-noun-phrase (article the) (noun student))
+  (prep-phrase
+   (prep with)
+   (simple-noun-phrase
+    (article the)
+    (noun cat))))
+ (verb-phrase
+  (verb sleeps)
+  (prep-phrase
+   (prep in)
+   (simple-noun-phrase (article the) (noun class)))))

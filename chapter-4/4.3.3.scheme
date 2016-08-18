@@ -120,3 +120,49 @@ ambの複雑さの多くは実行手続きがお互いを呼ぶに従い、継�
 そのような失敗はプログラムのバグ(未束縛な変数への参照)を示す。
 これは現在試行中のものの代わりに別の非決定性選択を試すことを示してはいけない。
 
+
+条件文と列
+条件文もまた通常の評価機と同様に取り扱われる。
+analyze-ifにより生成される実行手続きは述語実行手続きpprocを成功継続と共に起動する。
+成功継続は述語の値が真であるかチェックし、結果部下大腿部を実行する。
+もしpprocの実行が失敗したならif式に対する元の失敗継続が呼ばれる。
+
+(define (analyze-if exp)
+  (let ((pproc (analyze (if-predicate exp)))
+        (cproc (analyze (if-consequent exp)))
+        (aproc (analyze (if-alternative exp))))
+    (lambda (env succeed fail)
+      (pproc env
+             ;; 述語を評価するための成功継続を置く
+             ;; pred-valueを得るため
+             (lambda (pred-value fail2)
+               (if (true? pred-value)
+                   (cproc env succeed fail2)
+                   (aproc env succeed fail2)))
+             ;; 述語を評価するための失敗継続
+             fail))))
+
+列もまた以前の評価機と同様に扱われる。
+ただし継続を渡すために必要とされる内部手続sequentially内の企みがkとなる。
+具体的にはaを実行し、次にbと順に行うために、aと成功継続を共に呼び、成功継続がbを呼ぶ。
+
+(define (analyze-sequence exps)
+  (define (sequentially a b)
+    (lambda (env succeed fail)
+      (a env
+         ;; aを呼ぶための成功継続
+         (lambda (a-value fail2)
+           (b env succeed fail2))
+         ;; aを呼ぶための失敗継続
+         fail)))
+  (define (loop first-proc rest-procs)
+    (if (null? rest-procs)
+        first-proc
+        (loop (sequentially first-proc
+                            (car rest-procs))
+              (cdr rest-procs))))
+  (let ((procs (map analyze exps)))
+    (if (null? procs)
+        (error "Empty sequence: ANALYZE"))
+    (loop (car procs) (cdr procs))))
+

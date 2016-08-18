@@ -258,3 +258,22 @@ execute-applicationにより実行される実際の手続き適用は通常の�
           succeed
           fail))
         (else (error "Unknown procedure type: EXECUTE-APPLICATION" proc))))
+
+
+amb式の評価
+ambの特殊形式は非決定性言語の鍵となる要素。
+ここでは逐次翻訳処理の本質と継続を追跡する理由について学ぶ。
+ambに対する実行手続きはループtry-nextを定義する。これはすべてのamb式の可能な値のために、全実行手続きを通して実行する。
+各実行手続きは次の実行手続きを試す失敗継続と共に呼ばれる。
+試行する選択肢がなくなった場合は、amb式全体が失敗する。
+(define (analyze-amb exp)
+  (let ((cprocs (map analyze (amb-choices exp))))
+    (lambda (env succeed fail)
+      (define (try-next choices)
+        (if (null? choices)
+            (fail)
+            ((car choices)
+             env
+             succeed
+             (lambda () (try-next (cdr choices))))))
+      (try-next cprocs))))

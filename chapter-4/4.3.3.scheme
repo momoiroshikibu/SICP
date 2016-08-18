@@ -277,3 +277,51 @@ ambに対する実行手続きはループtry-nextを定義する。これはす
              succeed
              (lambda () (try-next (cdr choices))))))
       (try-next cprocs))))
+
+
+ドライバループ
+amb評価機のドライバルーは複雑。
+ユーザーに式の評価を再試行(try-again)することを可能にする仕組みのため。
+ドライバはinternal-loopと呼ばれる手続きを使用する。
+これは引数として手続きtry-againを取る。
+これの意図はtry-againの呼び出しは次のまだ思考されていない非決定性評価における選択肢へ続けなければならないこと。
+internal-loopはユーザーのドライバループでのtry-againへの入力の応答としてtry-againを呼ぶか、またはそうでなければambevalを呼ぶことにより新しい評価を開始する。
+ambevalへのこの呼出のための失敗継続はユーザーにもう値は残っていないと伝えドライバループを再起動する。
+ambevalへの呼出のための成功継続はより微妙。獲得した値を表示し、次に内部ループを再起動する。
+起動には次の選択肢を試行可能なtry-again手続きを伴う。このnext-alternative手続きは成功継続に2番めの引数として渡される。
+通常はこの2番めの引数はもし現在の評価分岐が後に失敗利用される失敗継続として考える。今回の場合は、評価を成功裡に完了した。
+そのため失敗のだいたい分岐を追加の成功する評価を探すために起動できる。
+
+(define input-prompt ";;; Amb-Eval input:")
+(define output-prompt ";;; Amb-Eval value:")
+(define (driver-loop)
+  (define (internal-loop try-again)
+    (prompt-for-input input-prompt)
+    (let ((input (read)))
+      (if (eq? input 'try-again)
+          (try-again)
+          (begin
+            (new-line)
+            (display ";;; Starting a new problem ")
+            (ambeval
+             input
+             the-global-environment
+             ;; ambeval success
+             (lambda (val next-alternative)
+               (annouce-output output-prompt)
+               (user-print val)
+               (internal-loop next-alternative))
+             ;; ambeval failure
+             (lambda ()
+               (announce-output
+                ";;; There are no more values of"
+                (user-print input)
+                (driver-loop))))))))
+  (internal-loop
+   (lambda ()
+     (newline)
+     (display ";;; There is no current problem")
+     (driver-loop))))
+
+internal-loopの最初の呼び出しでは現在、問題がないと不服を述べ、ドライバループを再開する。
+これはユーザーがtry-againを入力し評価に進展がない場合に起こる振る舞い。

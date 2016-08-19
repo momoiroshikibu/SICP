@@ -1,0 +1,155 @@
+4.4.4 クエリシステムの実装
+
+4.4.4.1 ドライバループとインスタンス化
+式が追加されるべきルールかアサーションであるのならその情報が追加される。
+そうでなければ式はクエリであるとみなされる。
+ドライバはこのクエリを評価機qevalに単一のからフレームからなる初期フレームストリームと共に渡される。
+
+(define input-prompt ";;; Query input:")
+(define output-prompt ";;; Query results:")
+
+(define (query-driver-loop)
+  (prompt-for-input input-prompt)
+  (let ((q (query-syntax-process (read))))
+    (cond ((asesrtion-to-be-added? q)
+           (add-rule-or-assertion! (add-assertion-body q))
+           (newline)
+           (display "Assertion added to data base.")
+           (query-driver-loop))
+          (else
+           (newline)
+           (display output-prompt)
+           (display-stream
+            (stream-map
+             (instantiate
+              q
+              frame
+              (lambda (v f)
+                (contract-question-mark v))))
+            (qeval q (singleton-stream '())))
+           (query-driver-loop)))))
+
+
+入力式のどんな処理を行う前にも、ドライバループは処理をより効率的にする形式へと構文的に変換する。
+これはパターン変数の表現の変更を含む。
+クエリが初期化されるとき、未束縛である任意の変数は表示される前に入力時の表現に戻される。
+これらの変換は2つの手続き、query-syntax-processとcontract-question-markにより実行される。
+
+式をインスタンス化するためにはまずコピーを行い、式中のすべての変数を与えられたフレーム内のそれらの値にて置き換える。
+値はそれら自信がインスタンス化される。それらが変数を含む可能性があるため。
+変数がインスタンス化出来ない場合に取るべき行動は手続きinstantiateの引数に渡される。
+
+(define (instantiate exp frame unbound-var-handler)
+  (define (copy exp)
+    (cond ((var? exp)
+           (let ((binding (binding-in-frame exp frame)))
+             (if binding
+                 (copy (binding-value binding))
+                 (unbound-var-handler epx frame))))
+          ((pair? exp)
+           (cons (copy (car exp)) (copy (cdr exp))))
+          (else exp)))
+  (copy exp))
+
+
+4.4.4.2 評価機
+(define (qeval query frame-stream)
+  (let ((qproc (get (type query) 'qeval)))
+    (if qproc
+        (qproc (contents query) frame-stream)
+        (simple-query query frame-stream))))
+
+
+単純なクエリ
+(define (simple-query query-pattern frame-stream)
+  (stream-flatmap
+   (lambda (frame)
+     (stream-append-delayed
+      (find-assertions query-pattern frame)
+      (delay (apply-rules query-pattern frame))))
+   frame-stream))
+
+入力ストリーム中の各フレームに対し、find-assertionsを用いてデータベース内のすべてのアサーションに対してパターンを適合し、拡張フレームのストリームを生成する。
+そしてapply-rulesを用いてすべての可能なルールを適用し、拡張フレームのもう一つのストリームを生成する。
+これらの2つのストリームは(stream-append-delayed)を用いて接続され、与えられたパターンが元のフレームに一致して満たされることが可能なすべての手段でストリームを作る。
+個別の入力フレームに対するストリームはstream-flatmapで接続され、元の入力ストリーム内の任意のフレームが与えら得たパターンを用いて適合を生成するために拡張することができるすべての手段により、1つの巨大なストリームが形成される。
+
+
+複合クエリ
+andクエリはconjoin手続きにより扱われる。
+conjoinは入力として結合(conjucts)とフレームのストリームを取り、拡張されたフレームのストリームを返す。
+最初にconjoinはフレームのストリームを処理し、結合内の最初のクエリを満たすすべての可能なフレームの拡張ストリームを探す。
+次に、これを新しいフレームのストリームとして用いて、再帰的にクエリの残りに対してconjoinを適用する。
+(define (conjoin conjucts frame-stream)
+  (if (empty-conjunction? conjucts)
+      frame-stream
+      (conjoin (rest-conjucts conjucts)
+               (qeval (first-conjunct conjuncts)
+                      frame-stream))))
+
+(put 'and 'qeval conjoin)
+この式はqevalに対し、andの型に遭遇した場合にconjoinを呼び出すように設定する。
+
+orの多彩な選択肢に対する出力ストリームは別々に求められ、interleave-delayed手続きを用いて結合される。
+(define (disjoin disjuncts frame-stream)
+  (if (empty-disjunction? disjncts)
+      the-empty-stream
+      (interleave-delayed
+       (qeval (first-disjunct disjuncts)
+              frame-stream)
+       (delay (disjoin (rest-disjuncts disjuncts)
+                       frame-stream)))))
+
+(put 'or 'qeval disjoin)
+
+
+フィルタ
+notは入力ストリーム内の各フレームを否定されたクエリを満たすように拡張することを試みる。
+そして拡張できない場合にのみ出力ストリームに与えられたフレームを含める。
+(define (negate operands frame-stream)
+  (stream-flatmap
+   (lambda (frame)
+     (if (stream-null?
+          (qeval (nagated-query operands)
+                 (singleton-stream frame)))
+         (singleton-stream frame)
+         (the-empty-stream)))
+   frame-stream))
+
+(put 'not 'qeval negate)
+
+lisp-valueはnotに似たフィルタ。
+ストリーム内の各フィルタはパターン内の変数をインスタンス化するために用いられ、指定された述語が適用され、述語が偽を返したフレームは入力ストリームから取り除かれる。
+(define (lisp-value call frame-stream)
+  (stream-flatmap
+   (lambda (frame)
+     (if (execute
+          (instantiate
+           call
+           frame
+           (lambda (v f)
+             (error "Unknown pat var: LISP-VALUE" v))))
+         (singleton-stream frame)
+         the-empty-stream))
+   frame-stream))
+
+(put 'lisp-value 'qeval lisp-value)
+
+
+executeは述語を引数に適用するが、述語式を評価し適用する手続きを得なければならない。
+しかし引数は評価してはいけない。なぜならそれらはすでに実際の引数であり、その(Lispにおける)評価が引数を生成する式ではないため。
+(define (execute exp)
+  (apply (eval (predicate exp)
+               user-initial-environment)
+         (args exp)))
+
+
+特殊形式always-trueはクエリに対し常に満たされた状態を与える。
+これはその中身(通常は空)を無視し、単純に入力ストリームのすべてのフレームを通します。
+always-trueはrule-bodyセレクタにより利用され、ボディ無しで定義されたルールに対しボディを提供数r。
+
+(define (always-true ignore frame-stream)
+  frame-stream)
+
+(put 'always-true 'qeval always-true)
+

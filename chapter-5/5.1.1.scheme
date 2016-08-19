@@ -1,0 +1,53 @@
+5.1.1 レジスタマシンを記述するための言語
+
+機械のコントローラをinstructions(命令)の列として、その列のentry pointsを特定するラベルとともに定義する。
+
+(data-paths
+ (registers
+  ((name a)
+   (buttons ((name a<-b) (source (register b)))))
+  ((name b)
+   (buttons ((name b<-t) (source (register t)))))
+  ((name t)
+   (buttons ((name t<-r) (source (operation rem))))))
+ (operations
+  ((name rem) (inputs (register a) (register b)))
+  ((name =) (inputs (register b) (constant 0)))))
+(controller
+ test-b                    ; label
+ (test =)                  ; test
+ (branch (label gcd-done)) ; conditional branch
+ (t<-r)                    ; button push
+ (a<-b)                    ; button push
+ (b<-t)                    ; button push
+ (goto (label test-b))     ; unconditional branch
+ gcd-done)                 ; label
+
+このような記述を読むのは難しい。
+コントローラの命令を理解するためには、常にボタンの名前と命令の名前の定義に戻らねばならず、またボタンが何をするのか理解するためには命令の名前の定義を参照する必要がある。
+
+(controller
+ test-b
+ (test (op =) (reg b) (const 0))
+ (branch (label gcd-done))
+ (assign t (op rem) (reg a) (reg b))
+ (assign a (reg b))
+ (assign b (reg t))
+ (goto (label test-b))
+ gcd-done)
+
+読みやすいが、欠点もある。
+大きな機械に対してはより冗長。データパス要素の複雑な記述がその要素がコントローラ命令列ないで触れられるたびに繰り返されるため。
+レジスタ、命令、ボタンが存在し、それらがどのように相互接続されているのかは自明ではない。
+
+
+アクション
+レジスタに格納できる出力の値を生成しない。
+データパス図ではアクションは値を求める命令と同じように、アクションの名前を含む台形として表現する。
+矢印は任意の入力(レジスタまたは定数)からアクションの箱へと指す。
+またボタンをアクションと関連付けることmおする。ボタンを押すとアクションが起こる。
+コントローラにアクションボタンを押させるために、performと呼ばれる新しい種類の命令を用いる。
+
+(perform (op print) (reg a)) ;レジスタaの中身を表示するアクション
+
+

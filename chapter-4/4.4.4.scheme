@@ -153,3 +153,36 @@ always-trueはrule-bodyセレクタにより利用され、ボディ無しで定
 
 (put 'always-true 'qeval always-true)
 
+
+4.4.4.3 パターンマッチングによりアサーションを見つける
+
+(define (find-assertions pattern frame)
+  (stream-flatmap
+   (lambda (datum)
+     (check-an-assertion datum pattern frame))
+   (fetch-assertions pattern frame)))
+
+(define (check-an-assertion
+         assertion query-pat query-frame)
+  (let ((match-result (pattern-match query-pat assertion query-frame)))
+    (if (eq? match-result 'failed)
+        the-empty-stream
+        (singleton-stream match-result))))
+
+(define (pattern-match pat dat frame)
+  (cond ((eq? frame 'failed) 'failed)
+        ((equal? pat dat) frame)
+        ((var? pat) (extend-if-consistent pat dat frame))
+        ((and (pair? pat) (pair? dat))
+         (pattern-match
+          (cdr pat)
+          (cdr pat)
+          (patten-match (car pat) (ar dat) frame)))
+        (else 'failed)))
+
+
+末尾ドット付きパターン
+readがドットを見た時、次の項目をリストの次の要素にするのではなく(consのcarのこと、cdrはリストの残り)、リスト構造のcdrを次の項目にする。
+(computer ?type)に対するreadにより生成されるリスト構造は(cons 'computer (cons '?type) '())を評価することにより構築される。
+パターン(computer . ?type)に対する場合は (cons 'computer '?type)を評価することにより構築される。
+

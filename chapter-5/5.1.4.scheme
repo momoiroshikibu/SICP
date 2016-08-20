@@ -1,0 +1,119 @@
+5.1.4 再帰実装にスタックを使用する
+
+再帰プロセスを実装する場合は、追加の仕組みが必要。
+
+(define (factorial n)
+  (if (= n 1) 1 (factorial (- n 1) n)))
+
+この手続から見て取れるように、n!の演算は(n-1)!の演算を必要とする。
+
+(define (gcd a b)
+  (if (= b 0) a (gcd b (remainder a b))))
+
+GCDは上のようにモデル化されているが、同時に別のGCDを求める必要がある。
+しかし、元の演算から新しいGCD演算へと簡約するGCD手続きと、部分問題としての別の階乗を求める必要があるfactorialの間には重要な違いがある。
+GCDにおいては新しいGCD演算にチアする答えは下の問題の答え。
+次のGCDを求めるためには、単純に新しい引数をGCDマシンの入力レジスタに置き、機械のデータパスを同じコントローラシーケンスを実行することにより再利用する。
+機械が最後のGCD問題を解くことを完了した場合は、演算全体を完了したことになる。
+
+階乗の場合(または任意の再帰プロセス)においては新しい階乗の部分問題の回答は下の問題の回答ではない。
+(n-1)!に対して得られた値は最終回答を得るためにnで乗算しなければならない。
+もしGCDの設計を真似し、階乗の部分問題をレジスタnでデクリメントし、階乗マシンに戻ることより解決したいとしても、その結果に乗算を行う有効な古いnの値はすでに存在しない。
+従って部分問題上で働くための2つ目の階乗マシンが必要。
+この2つ目の階乗の演算はそれ自身が階乗の部分問題を持ち、それは3つ目の階乗マシンを必要とし、以下繰り返される。
+各会場マシンがその中に別の階乗マシンを持つため、早慶の機械は同様な機械の無限の入れ子を含み、従って固定長の有限数な部品から構築することができない。
+
+もし機械の各入れ子のインスタンスが同じコンポーネントを使用するように準備ができれば階乗プロセスをレジスタマシンとして実装できる。
+たとえ階乗プロセスが同じ機械のコピーの未束縛の数値が演算を実行するのに必要だと指図したとしても、これらのコピーのただ一つが一度に有効になる必要がある。
+この機会が再帰の部分問題に遭遇した時に、メインの問題上の仕事を中断し、同じ物理部品を部分問題上の仕事に再利用し、そして中断した演算を続けることが可能。
+部分問題の中では、レジスタの中身はメインの問題の中のものと異なる。
+中断された演算を続けることを可能にするために、機械は部分問題が解決した後に必要となる全てのレジスタの中身を保存しなければならない。
+そうすることで、中断した演算を続けるときにこれらの値が再格納されることができる。
+階乗の場合には、デクリメントされたレジスタの階乗の演算が完了した時に再格納されるようにnの古い値を保存する。
+
+(controller
+ (assign continue (label fact-done)); set up final return address
+ fact-loop
+ (test (op) reg (n) (const 1))
+ (branch (label base-case))
+ ;; Set up for recursive call by saving n and continue.
+ ;; Set up continue so that the computation will continue
+ ;; at after-fact when the subroutine returns.
+ (save continue)
+ (save n)
+ (assign n (op -) (reg n) (const 1))
+ (assign continue (label after-fact))
+ (goto (label fact-loop))
+ after-fact
+ (restore n)
+ (restore continue)
+ (assign val (op *) (reg n) (rev val)) ; val now contains n(n - 1)!
+ (goto (reg continue))                 ; return to caller
+ base-case
+ (assign val (const 1))                 ; base case: 1! = 1
+ (goto (reg continue))                  ; return to callse
+ fact-done)
+
+予測可能な限界が入れこの再帰呼び出しの深さには存在しないため、任意の数のレジスタ値を保存する必要があるでしょう。
+これらの値は保存された順の逆順に再格納されねばならない。
+入れ子の再帰では突入する最後の部分問題が最初に完了するため。
+このことがstackつまり、"last in, first out"データ構造をレジスタ値の保存への使用することを支持している。
+レジスタマシン言語を拡張し、2つの種類の命令を追加することでスタックを含めることができる。
+値はスタックにsave命令を用いて置かれて、restore命令を用いてスタックから再格納される。
+スタック上に一連の値がsaveされた後に、連続したrestoreがこれらの値を逆順に取り出す。
+スタックの助けを借りることで階乗マシンの各会場部分問題のためにデータパスの単一のコピーを再利用することができる。
+同様なデータパスを走査するコントローラシーケンスの再利用についても同様の設計上の問題が存在する。
+階乗演算を再実行するためには、コントローラは単純には最初に反復プロセスのようにループバックすることはできない。
+(n-1)!を解いたあとには機械は依然としてその結果とnを掛ける必要が有るため。
+コントローラhあn!の演算を中断し、部分問題(n-1)!を解き、そしてn!の演算を続けなければならない。
+階乗演算のこの見方はサブルーチンの仕組みの使用を推奨しており、これはコントローラにレジスタcontinueを使用させて部分問題を得列の一部へと移動し、そしてメイン問題を中止した場所から実行する。
+このようにしてcontinueレジスタに格納されたエントリポイントに帰る階乗のサブルーチンを作ることが出来る。
+各サブルーチン呼び出しの周りでは、continueをnレジスタに行うのと同じように保存し再格納します。
+階乗演算の各レベルが同じcontinueレジスタを利用するため。
+つまり、階乗サブルーチンはそれが自分自身を部分問題として呼び出すときに、新しい値をcontinueに設定しなければならない。
+しかし部分問題を解くために呼び出した場所に戻るために古い値が必要となる。
+機械はスタックと3つのレジスタ、n, val, continueを持つ。レジスタnに階乗を求めたい数を入れ、それから機械を開始する。
+機械がfact-doneにたどり着いた時に演算は完了し、答えはレジスタvalに見つかる。
+コントローラシーケンスではnとcontinueが各再帰呼出しの前に保存され、その呼出から戻るときに再格納される。
+呼び出しからの復帰はcontinueに格納された場所に分岐することにより達成される。
+continueは機械が開始した時に最後の復帰がfact-doneに向かうように初期化される。
+階乗演算の結果を持つvalレジスタは再帰呼び出しの前に保存されない。valの古い中身はサブルーチンから復帰後には役に立たないため。
+部分問題により生成された新しい値のみが必要。
+
+
+二重再帰
+(define (fib n)
+  (if (< n 2)
+      n (+ (fib (- n 1)) (fib (- n 2)))))
+
+各再帰呼び出しに準備するために、後にその値が必要となるレジスタを保存し、レジスタnに再帰的に求める(n-1またはn-2)必要のあるフィボナッチ数を設定します。
+そしてcontinueに戻り先のメインのシーケンスのエントリポイント(それぞれafterfib-n-1, afterfib-n-2)を割り当てる。
+その後、fib-loopへ飛ぶ。再帰呼び出しから帰るときには、回答はvalの中にある。
+
+(controller
+ (assign continue (label-fibdone))
+ fib-loop
+ (test (op <) (reg n) (const 2))
+ (branch (label immediate-answer))
+ ;; Fib(n-1)
+ (save continue)
+ (asssign continue (label afterfib-n-1))
+ (save n)                               ; nの古い値を保存
+ (assign n (op -) (reg n) (const 1))    ; nをn-1で上書き
+ (goto (label fib-loop))                ; 再帰呼び出しの実行
+ afterfib-n-1                           ; リターン時にvalがFib(n-1)を持つ
+ (restore n)
+ (restore continue)
+ (assign (n op -) (reg n) (const 2))
+ (save continue)
+ (assign continue (label afterfib-n-2))
+ (save val)                             ; Fib(n-1)を保存
+ (goto (label fib-loop))
+ afterfib-n-2                           ; リターン時にvalがFib(n-2)を持つ
+ (assign n (reg val))                   ; nがここでFib(n-2)を持つ
+ (restore val)                          ; valがここでFib(n-1)を持つ
+ (restore continue)
+ (assign val                            ; Fib(n-1) + Fib(n-2)
+         (op +) (reg val) (reg n))
+ (goto (reg continue))                  ; 呼び出しから戻る。答えはvalの中にある
+ fib-done)

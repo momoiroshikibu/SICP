@@ -1,0 +1,42 @@
+5.2 レジスタマシンシミュレータ
+
+4つのインタフェースを持つ。
+ひとつ目は、レジスタマシンの記述をマシンのモデルを構築するために利用する。
+残りの3つがモデルを走査することにより機械のシミュレーションを可能にする。
+
+与えられたレジスタ、命令、コントローラを持つ機械のモデルを構築し、返す。
+(make-machine <register-names> <operations> <controller>)
+
+与えられた機械でシミュレートされるレジスタに値を格納する。
+(set-register-contents! <machine-model> <register-name> <value>)
+
+与えられた機械でシミュレートされるレジスタの中身を返す。
+(get-register-contents <machine-model> <register-name>)
+
+与えられた機械の実行をシミュレートする。
+コントローラシーケンスの最初から開始し、シーケンスの最後に辿り着いたときに停止する。
+(start <machine-model>)
+
+(define gcd-machine
+  (make-machine
+   '(a b t)
+   (list (list 'rem remainder) (list '= =))
+   '(test-b (test (op =) (reg b) (const 0))
+            (branch (label gcd-done))
+            (assign t (op rem) (reg a) (reg b))
+            (assign a (reg b))
+            (assign b (reg t))
+            (goto (label test-b))
+            gcd-done)))
+
+make-machineに対する最初の引数はレジスタ名のリスト。次の引数は各命令名とその命令を実装するScheme手続き(つまり、同じ入力値を与えられて同じ出力値を生成する)をペアにするテーブル。
+最後の引数はラベルと機械の命令(機械語)のリストとしてのコントローラ。
+(set-register-contents! gcd-machine 'a 206)
+done
+(set-register-contents! gcd-machine 'b 40)
+done
+(start gcd-machine)
+(get-register-contents gcd-machine 'a)
+2
+この演算はSchemeで書かれたgcd手続きよりもとても遅く実行します。なぜならassignのような低レベルの機械語をより複雑な命令によりシミュレートするため。
+

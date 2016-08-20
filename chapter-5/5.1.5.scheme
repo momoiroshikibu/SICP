@@ -1,0 +1,29 @@
+5.1.5 命令の要約
+
+レジスタマシン言語のコントローラ命令は以下の形式のうち1つを持ち、
+各<inputi>は(reg <register-name>)か(const <constant-value>)のいずれか。
+
+(assign <register-name> (reg <register-name>))
+(assign <register-name> (const <constant-value>))
+(assign <register-name>
+        (op <operation-name>
+            <input1>...<inputn>))
+(perform (op <operation-name>) <input1>...<inputn>)
+(test (op <operation-name>) <input1>...<inputn>)
+(branch (label <label-name>))
+(goto (label <label-name>))
+
+レジスタを用いてラベルを保存することはSection5.1.3で導入された。
+(assign <register-name> (label <label-name>))
+(goto (reg <register-name>))
+
+スタックを使用する命令はSection5.1.4で導入された。
+(save <register-name>)
+(restore <register-name>)
+
+<constant-value>の種類は、数値、シンボル、リストを使用する
+(const "abc")                           ; 文字列
+(const abc)                             ; シンボル
+(const (a b c))                         ; リスト
+(const ())                              ; 空リスト
+

@@ -1,0 +1,82 @@
+5.1.3 サブルーチン
+
+gcd-1
+(test (op =) (reg b) (const 0))
+(branch (label after-gcd-1))
+(assign t (op rem) (reg a) (reg b))
+(assign a (reg b))
+(assign b (reg t))
+(goto (label gcd-1))
+after-gcd-1
+
+gcd-2
+(test (op =) (reg b) (const 0))
+(branch (label after-gcd-2))
+(assign t (op rem) (reg a) (reg b))
+(assign a (reg b))
+(assign b (reg t))
+(goto (label gcd-2))
+after-gcd-2
+
+コントローラはエントリポイントのラベルのみが異なる2つのGCDシーケンスを持つ。
+これらを1つのシーケンス gcd subroutine への分岐により置き換える。
+サブルーチンの終わりにメインの命令列の正しい場所へと戻る。
+gcdに分岐する前に(0か1のような)識別するための値を特別なレジスタcontinueに置く。
+
+gcd
+(test (op =) (reg b) (const 0))
+(branch (label gcd-done))
+(assign t (op rem) (reg a) (reg b))
+(assign a (reg b))
+(assign b (reg t))
+(goto (label gcd))
+gcd-done
+(test (op =) (reg continue) (const 0))
+(branch (label after-gcd-1))
+(goto (label after-gcd-2))
+
+;; gcdを必要とする場所からその場所へと分岐する前に
+;; レジスタcontinueに0を置く
+(assign continue (const 0))
+(goto (label gcd))
+after-gcd-1
+
+;; gcdの二度目の使用の前にはレジスタcontinueに1を置く
+(assign continue (const 1))
+(got (label gcd))
+after-gcd-2
+
+これは数多くのGCD演算がコントローラシーケンスの中にある場合には困る。
+GCDサブルーチンの後に実行をどこで続けるかを決定するために、データパス内のテストとコントローラ内に分岐命令がGCDを置くすべての場所に必要になる。
+サブルーチンを実装するためのようり強力な手法は、continueレジスタにサブルーチンが終了した時に実行が続行しなければならない場所のコントローラシーケンス内のエントリポイントのラベルを持たせること。
+この戦略の実装にはレジスタマシンのデータパスとコントローラの間に新しい種類のコネクションが必要。
+ラベルの値をレジスタから取得し指定されたエントリポイントから実行を再開するのに使用できるような方法のため、レジスタにコントローラシーケンス内のラベルを代入するための方法が必要。
+
+assign命令を拡張し、レジスタに値としてラベルをコントローラシーケンスから(特別な種類の中身として)代入することを許可する拡張を行う。
+またgoto命令にも静的ラベルにより記述されたエントリポイントのみでなく、レジスタの中により表されたエントリポイントから実行を続行することを許可する拡張をおこなう。
+これらを用いることでcontinueレジスタ内に格納された場所に分岐することにより、gcdサブルーチンを停止することができる。
+
+gcd
+(test (op =) (reg b) (const 0))
+(branch (label gcd-done))
+(assign t (op rem) (reg a) (reg b))
+(assign a (reg b))
+(assign b (reg t))
+
+gcd-done
+(goto (reg continue))
+
+;; gcdを呼ぶ前に、continueにgcdtが戻るべきラベルを代入する
+(assign continue (label after-gcd-1))
+(goto (label gcd))
+after-gcd-1
+
+;; 異なる継続を持つ2つ目のgcd呼び出し
+(assign continue (label after-gcd-2))
+(goto (label gcd))
+after-gcd-2
+
+複数のサブルーチンを持つマシンは複数の継続レジスタ(例えばgcd-continue, factorial-continue)を用いるか、
+またはすべてのサブルーチンが単一のcontinueレジスタを共有することができる。
+共有はより経済的だが、別のサブルーチンを呼び出すサブルーチンを持っていないか注意する。
+sub1がcontinueの中身を何か他のレジスタに、continueをsub2の呼び出しのために設定する前に保存しなければ、sub1は完了した時点でどこに行けばよいのか知ることが出来ない。

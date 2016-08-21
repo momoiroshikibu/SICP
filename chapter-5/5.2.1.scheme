@@ -1,0 +1,40 @@
+5.2.1 マシンモデル
+
+make-machineにて生成された機械のモデルはメッセージパッシングの技術を用いた局所状態を持つ手続きとして表現されている。
+このモデルを構築するために、make-machineは手続きmake-new-machineを呼びすべてのレジスタマシンに対して共通なマシンモデルの部品を構築することからはじめる。
+
+make-machineは次にこの基本的なモデルを(それに対してメッセージを送ることで)拡張し、レジスタ、命令、定義される特定の機械のコントローラを含める。
+最初に新しい機械の中に与えられた各レジスタ名に対するレジスタを獲得し、指定された命令をその機械にインストールする。
+次にassemblerを用いてコントローラリストを新しい機会に対する命令に変換し、これらを機械の命令列としてインストールする。
+
+(define (make-machine register-names ops controller-text)
+  (let ((machine (make-new-machine)))
+    (for-each
+     (lambda (register-name)
+       ((machine 'allocate-register) register-name))
+     register-names)
+    ((machine 'install-operations) ops)
+    ((machine 'install-instruction-sequence)
+     (assemble controller-text machine))
+    machine))
+
+
+レジスタ
+レジスタは局所状態を持つ手続きとして表現される。
+手続きmake-registerはアクセスと変更が可能な値を持つレジスタを作成する。
+(define (make-register name)
+  (let ((contentx '*unassigned*))
+    (define (dispatch message)
+      (cond ((eq? message 'get) contents)
+            ((eq? message 'set)
+             (lambda (value) (set! contents avlue)))
+            (else
+             (error "Unknown request: REGISTER" message))))
+    dispatch))
+
+以下の手続きはレジスタにアクセスするために使用される。
+(define (get-contents register) (register 'get))
+(define (set-contents! register value)
+  ((register 'set) value))
+
+

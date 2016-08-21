@@ -67,3 +67,87 @@ make-machineは次にこの基本的なモデルを(それに対してメッセ�
 (define (pop stack) (stack 'pop))
 (define (push stack value) ((stack 'push) value))
 
+
+基本的な機械
+make-new-machine手続きは局所状態がスタック、初期値が空の命令列、初期値がスタックを初期化する命令を持つ命令のリスト、
+初期値として2つのレジスタflagとpc(program counter)を持つregister tableから成り立つ。
+内部手続loopup-registerはテーブル内のレジスタを探す。
+flagレジスタはシミュレートされる機械にて分岐をコントロールするために使用される。
+test命令はflagの中身にテストの結果(真、または偽)を設定する。
+branch命令は分岐するかしないかをflagの中身を調査して決定する。
+pcレジスタは機械が実行する命令の順序付けを決定する。
+この順序付けは内部手続executeにより実装されている。
+シミュレーションモデルでは各機械命令はinstruction execution procedure(命令実行手続き)と呼ばれる引数なしの手続きを含むデータ構造であり、
+この手続を呼ぶことにより命令の実行をシミュレートする。
+シミュレーションが実行されるにつれ、pcは次に実行される命令から始まる命令列のち円を指す。
+exeecuteはその命令を得て、それを命令実行手続きを呼ぶことで実行し、このサイクルを実行する命令がなくなるまで(pcが命令列の最後を指すまで)繰り返す。
+
+(define (make-new-machine)
+  (let ((pc (make-register 'pc))
+        (flag (make-register 'flag))
+        (stack (make-stack))
+        (the-instruction-sequence '()))
+    (let ((the-ops
+           (list (list 'initialize-stack
+                       (lambda () (stack 'initialize)))))
+          (register-table
+           (list (list 'pc pc) (list 'flag flag))))
+      (define (allocate-register name)
+        (if (assoc name register-table)
+            (error "multiply defined register: " name)
+            (set! register-table
+                  (cons (list name (make-register name))
+                        register-table)))
+        'register-allocated)
+      (define (lookup-register name)
+        (let ((val (assoc name register-table)))
+          (if val
+              (cadr val)
+              (error "Unknown register:" name))))
+      (define (execute)
+        (let ((insts (get-contents pc)))
+          (if (null? insts)
+              'done
+              (begin
+                ((instruction-execution-proc (car insts)))
+                (execute)))))
+      (define (dispatch message)
+        (cond ((eq? message 'start)
+               (set-contents! pc the-instruction-sequence)
+               (execute))
+              ((eq? message 'install-instruction-sequence)
+               (lambda (seq)
+                 (set! the-instruction-sequence seq)))
+              ((eq? message 'allocate-register)
+               allocate-register)
+              ((eq? message 'get-register)
+               lookup-register)
+              ((eq? message 'install-operations)
+               (lambda (ops)
+                 (set! the-ops (append the-ops ops))))
+              ((eq? message 'stack) stack)
+              ((eq? message 'operations) the-ops)
+              (else (error "Unknown request: MACHINE" message))))
+      dispatch)))
+
+
+工程の一部として、各命令の実行手続きはpcを変更し次に実行される命令を指すようにする。
+branchとgoto命令はpcを変更し新しい行き先を指すようにする。
+すべての他の命令は単純にpcを勧めて列の次の命令を指すようにする。
+各executeの呼び出しがexecuteを再び呼び出すことに注意。
+これは無限ループにはならない。命令実行手続きの実行はpcの中身を変更するため。
+
+make-new-machineはdispatchを返す。
+これはメッセージパッシングを実装する。
+機械の開始はpcに命令列の最初を設定し、executeを呼ぶことにより達成される。
+利便性のために、機械のstart命令の代替となる手続きのインタフェースを提供数r。
+
+(define (start machine) (machine 'start))
+(define (get-register-contents machine register-name)
+  (get-contents (get-register machine register-name)))
+(define (set-register-contents! machine register-name value)
+  (set-contents! (get-register machine register-name) value)
+  'done)
+
+(define (get-register machine reg-name)
+  ((machine 'get-register) reg-name))

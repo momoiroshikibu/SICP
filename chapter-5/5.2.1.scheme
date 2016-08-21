@@ -38,3 +38,32 @@ make-machineは次にこの基本的なモデルを(それに対してメッセ�
   ((register 'set) value))
 
 
+スタック
+スタックもまた局所状態を持つ手続きとして表現される。
+手続きmake-stackは局所状態がスタック上のアイテム(項目)のリストからなるスタックを作成します。
+スタックはスタック上にアイテムをpushとスタックから最上位のアイテムを取り去りそれを返すpop、スタックを空に初期化するinitializeのリクエストを受け付ける。
+
+(define (make-stack)
+  (let ((s '()))
+    (define (push x)
+      (set! s (cons x s)))
+    (define (pop)
+      (if (null? s)
+          (error "Empty stack: POP")
+          (let ((top (car s)))
+            (set! s (cdr s))
+            top)))
+    (define (initialize)
+      (set! s '())
+      'done)
+    (define (dispatch message)
+      (cond ((eq? message 'push) push)
+            ((eq? message 'pop) (pop))
+            ((eq message 'initialize) (initialize))
+            (else (error "Unknown request: STACK" message))))
+    dispatch))
+
+以下の手続きはスタックへのアクセスに使用される。
+(define (pop stack) (stack 'pop))
+(define (push stack value) ((stack 'push) value))
+

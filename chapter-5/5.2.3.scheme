@@ -1,0 +1,64 @@
+5.2.3 各命令に対する実行手続きの生成
+
+アセンブラは命令の実行手続きを生成するためにmake-execution-procedureを呼ぶ。
+これは適切な実行手続きを生成するために命令の型に従い呼び出しを行う。
+(define (make-execution-procedure inst labels machine pc flag stack ops)
+  (cond ((eq? (car inst) 'assign)
+         (make-assign inst machine labels ops pc))
+        ((eq? (car inst) 'test)
+         (make-test inst machine labels ops flag pc))
+        ((eq? (car inst) 'branch)
+         (make-branch inst machine labels ops flag pc))
+        ((eq? (car inst) 'goto)
+         (make-goto inst machine labels pc))
+        ((eq? (car inst) 'save)
+         (make-save inst machine stack pc))
+        ((eq? (car inst) 'restore)
+         (make-restore inst machine stack pc))
+        ((eq? (car inst) 'perform)
+         (make-perform inst machine labels ops pc))
+        (else
+         (error "Unknown instruction type: ASSEMBLE" inst))))
+
+レジスタマシンの言語の命令の各型に対し、適切な実行手続きを構築する生成器が存在します。
+これらの手続きの詳細がレジスタマシン言語の構文と個別の命令の意味の両方を決定します。
+データ抽象化を用いることで全体的な実行の仕組みからレジスタマシンの式の詳細な構文を分離している。
+
+assign命令
+make-assign手続きはassign命令を扱う
+(define (make-assign let inst machine labels operations pc)
+  (let ((target
+         (get-register machine (assign-reg-name inst)))
+        (value-exp (assing-value-exp inst)))
+    (let ((value-proc
+           (if (operation-exp? value-exp)
+               (make-operation-exp
+                value-exp machine labels operations)
+               (make-primitive-exp
+                (car value-exp) machine labels))))
+      (lambda () ; assignに対する実行手続き
+        (set-contents! target (value-proc))
+        (advance-pc pc)))))
+
+make-assignはターゲットとなるレジスタ名(命令の2つ目の要素)と値の式(命令を構成するリストの残りの部分)をassign命令からセレクタを用いて抽出する。
+(define (assign-reg-name assign-instruction)
+  (cadr assign-instruction))
+(define (assign-value-exp assign-instruction)
+  (addr assign-instruction))
+
+レジスタ名がget-registerを用いて検索され目的のレジスタオブジェクトを生成します。
+値の式はもし値が命令の結果であるのならmake-operation-expに渡され、そうでなければmake-primitive-expに渡されます。
+これらの手続きは値の式を構文解析しその値に対する実行手続きを生成します。
+これは引数無しの手続きでvalue-procと呼ばれ、シミュレーションの間にレジスタに代入される実際の値を生成するために評価される。
+レジスタ名の検索と値の式の構文解析の仕事はただ一度、アセンブリ時(アセンブラ実行時)に実行されることに注意。
+その命令がシミュレートされる度に毎回ではない。
+この仕事量の削減こそが私達が実行手続きを使用する理由。
+
+make-assignにより返される結果はassign命令のための実行手続き。
+この手続がexecute手続きにより呼ばれた時にvalue-proc手続きを実行することにより得られた結果を目的のレジスタの中身に設定します。
+その次にpcを以下の手続きを実行することにより次の命令へと進めます。
+
+(define (advance-pc pc)
+  (set-contents! pc (cdr (get-contents pc))))
+
+advance-pcはbranchとgotoを除く全ての命令に対する通常の終わり。

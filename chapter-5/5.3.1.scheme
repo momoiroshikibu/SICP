@@ -85,3 +85,20 @@ consは未使用の索引を割り当て、consの引数をthe-carsとthe-cdrs�
 そしてpair?, null? symbol? number?のような述語は型フィールドのみを確認する必要がある。
 
 
+スタックの実装
+スタックはリストを用いてモデル化することができる。
+保存した値のリストとすることができ、特別なレジスタthe-stackにより指し示される。
+従って(save <reg>)は以下のように実装することができる。
+
+(assign the-stack (op cons) (reg <reg>) (reg the-stack))
+
+同様に(restore <reg>)は次のように実装できる。
+(assign <reg> (op car) (reg the-stack))
+(assign the-stack (op cdr) (reg the-stack))
+
+そして(perform (op initialize-stack))は以下のように実装できる。
+(assign the-stack (const ()))
+
+これらの命令は上で与えられたベクタ命令を用いてさらに伸展される。
+しかし、伝統的な計算機アーキテクチャにおいてはスタックを別のベクタとして割り当てることは通常は好都合。
+そうすれば、スタックにpushやpopを行うことはベクタに対する索引をインクリメント、デクリメントすることにより達成することができる。

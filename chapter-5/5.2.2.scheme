@@ -1,0 +1,51 @@
+5.2.2 アセンブラ
+アセンブラはコントローラの機械のための式の列を対応する機械の命令のリストへと変形します。
+各命令はその実行手続きを持ちます。
+入力言語が存在し(この場合にはレジスタマシン言語)、言語の式の各型に対して適切なアクションを実行しなければなりません。
+各命令のための実行手続きを生成する技術は実行時に実行から分析を分離することで高速化するために用いたものと同じ。
+Schemeの式の多くの実用的な分析は変数の実際の値を知らなくとも実行することができた。
+ここでも同様に、レジスタマシン言語の式の多くの実用的な分析が実際の機械のレジスタの値を知ること無しに実行することができる。
+例えばレジスタへの参照をレジスタオブジェクトへのポインタにより置き換えたり、ラベルをラベルが指定する命令列内の地点へのポインタで置き換えることができます。
+
+アセンブラが命令実行手続きを生成する前に、全てのテーブルが何を参照するのか知っておく必要がある。
+そのためのコントローラテキストを操作し命令からラベルを分離することから始める。
+アセンブラがテキストを操作するにつれ、命令のリストと各ラベルをそのリスト内部を指すポインタと関連付けるテーブルの両方を構築します。
+そうしたらアセンブラは命令リストを各命令に対する実行手続きを挿入することで増補する。
+
+assemble手続きはアセンブラに対する主な入り口。
+コントローラテキストとマシンモデルを引数として取り、モデルに格納するべき命令列を返す。
+assembleはextract-labelsを呼び初期命令リストと与えられたコントローラテキストからラベルテーブルを構築します。
+extract-labelsの2つ目の引数はこれらの結果を処理するために呼ばれるべきもの。
+この手続はupdate-insts!を用いて命令実行手続きを再生し、それらを命令リストの中に挿入し、変更されたリストを返す。
+
+(define (assmble controller-text machine)
+  (extract-labels
+   controller-text
+   (lambda (insts labels)
+     (update-insts! insts labels machine)
+     insts)))
+
+extract-labelsは引数としてリストtext(コントローラ命令式の列)とreceive手続きを取る。
+receiveは2つの値と共に呼び出される。
+1. 命令データ構造のリストinstsはそれぞれがtextからの命令を含む
+2. テーブルlabelsはtextからの各ラベルとそのラベルが指定するリストinsts内の位置とを関連付ける
+
+(define (extract-labels text receive)
+  (if (null? text)
+      (receive '() '())
+      (extract-labels
+       (cdr text)
+       (lambda (insts labels)
+         (let ((next-inst (car text)))
+           (if (symbol? next-inst)
+               (receive insts
+                        (cons (make-label-entry next-inst
+                                                insts)
+                              labels))
+               (receive (cons (make-instruction next-inst)
+                              insts)
+                        labels)))))))
+
+extract-labelsは連続してtext要素を操作し、instsとlabelsを集積することで働く。
+もし要素がシンボル(従ってラベル)なら適切なエントリがlabelsテーブルに追加される。
+そうでなければその要素はinstsリスト上に集積される。

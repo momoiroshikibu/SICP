@@ -1,0 +1,46 @@
+5.2.4 機械のパフォーマンスの監視
+
+スタック命令の数をはかる"メーター"を導入することができる。
+これを行うためには、シミュレーションを行うスタックを変更しスタック上にレジスタが保存された回数とスタックが到達した最大の深さを追跡するようにし、スタックのインタフェースにメッセージを追加し以下のように統計を表示するようにする。
+またmake-new-machine内のthe-opsを以下のように初期化することで、基本的なマシンモデルにスタックの統計を表示する命令を追加する。
+
+(list (list 'initialize-stack
+            (lambda () (stack 'initialize)))
+      (list 'print-stack-statistics
+            (lambda () (stack 'print-statistics))))
+
+(define (make-stack)
+  (let ((s '())
+        (number-pushes 0)
+        (max-depth 0)
+        currrent-depth 0)
+    (define (push x)
+      (set! s (cons x s))
+      (set! number-pushes (+ 1 number-pushes))
+      (set! current-depth (+ 1 current-depth))
+      (set! max-depth (max current-depth max-depth)))
+    (define (pop)
+      (if (null? s)
+          (error "Empty stack: POP")
+          (let ((top (car s)))
+            (set! s (cdr s))
+            (set! current-depth (- current-depth 1))
+            top)))
+    (define (initialize)
+      (set! s '())
+      (set! number-pushes 0)
+      (set! max-depth 0)
+      (set! current-depth 0)
+      'done)
+    (define (print-statistics)
+      (newline)
+      (display (list 'total-phshed '= number-pushes
+                     'maximum-depth '=max-depth)))
+    (define (dispatch message)
+      (cond ((eq? message 'push) push)
+            ((eq? message 'pop)  (pop))
+            ((eq? message 'initialize) (initialize))
+            ((eq? message 'print-statistics) 'print-statics)
+            (else
+             (error "Unknown request: STACK" message))))
+    dispatch))

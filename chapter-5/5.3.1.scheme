@@ -38,3 +38,50 @@ readerが文字列に遭遇しシンボルを構築しようとするとき、ob
 もしreaderがすでにその文字列を見ていれば、obarrayに格納されているシンボルのポインタを返す。
 この文字列を一意なポインタで置き換える処理はシンボルのinterning(抑留)と呼ばれる。
 
+
+プリミティブなリスト命令の実装
+レジスタマシンの各プリミティブなリスト命令を複数のプリミティブなベクタ命令で置き換えることができる。
+2つのレジスタthe-carsとthe-cdrsを用いてメモリベクタを特定し、vector-refとvector-set!がプリミティブな命令として有効であると仮定します。
+またポインタ上の演算命令(例えばポインタをインクリメントする、ペアのポインタを用いてベクタを索引付する、または2つの数値を足す)は型付きポインタの索引部分しか利用しません。
+例えば、次の命令をサポートするレジスタマシンをその下の条件の下で作成することが出来る。
+(assign <reg1> (op car) (reg <reg2>))
+(assign <reg1> (op cdr) (reg <reg2>))
+
+上の命令のそれぞれに対し、これらが実装されているとする。
+(assign <reg1> (op vector-ref) (reg the-cars) (reg <reg2>))
+(assign <reg1> (op vector-ref) (reg the-cdrs) (reg <reg2>))
+
+以下の命令は、
+
+(perform (op set-car!) (reg <reg1>) (reg <reg2>))
+(perform (op set-cdr!) (reg <reg1>) (reg <reg2>))
+
+次のように実装される。
+
+(perform
+ (op vector-set!) (reg the-cars) (reg <reg1>) (reg <reg2>))
+(perform
+ (op vector-set!) (reg the-cdrs) (reg <reg1>) (reg <reg2>))
+
+consは未使用の索引を割り当て、consの引数をthe-carsとthe-cdrsの中で索引付けられたベクタの位置に格納します。
+私たちは特別なレジスタ、freeが存在し、常に次に使用可能な索引を持つペアポインタを保つと仮定する。
+そしてそのポインタの索引部分をインクリメントすることで次の秋位置を探すことができる。
+
+(assign <reg1> (op cons) (reg <reg2>) (reg <reg3>))
+
+次の一連のベクタ命令として実装される。
+
+(perform
+ (op vector-set!) (reg the-cars) (reg free) (reg <reg2>))
+(perform
+ (op vector-set!) (reg the-cdrs) (reg free) (reg <reg2>))
+(assign <reg1> (reg free))
+(assign free (op +) (reg free) (const 1))
+
+以下のeq?命令は
+(op eq?) (reg <reg1>) (reg <reg2>)
+
+単純にレジスタ内のすべての項目の等価性をテストする。
+そしてpair?, null? symbol? number?のような述語は型フィールドのみを確認する必要がある。
+
+

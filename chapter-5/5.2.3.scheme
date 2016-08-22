@@ -154,3 +154,58 @@ make-performで扱われる最後の命令形は実行されるべきアクシ�
           (lambda () (action-proc) (advance-pc pc)))
         (error "Bad PERFORM instruction ASSEMBLE" inst))))
 (define (perform-action inst) (cdr inst))
+
+
+部分式の実行手続き
+reg, label, const式の値はレジスタへの代入(make-assign)のため、または演算命令の入力(下記のmake-operation-exp)のために必要になるかもしれない。
+以下の手続きはこれらの式のための値のシミュレーションの間に生成するための実行手続きを生成する。
+(define (make-primitive-exp exp machine labels)
+  (cond ((constant-exp? exp)
+         (let ((c (constant-exp-value exp)))
+           (lambda () c)))
+        ((label-exp? exp)
+         (let ((insts (lookup-label
+                       labels
+                       (label-exp-label exp))))
+           (lambda () insts)))
+        ((register-exp? exp)
+         (let ((r (get-register machine
+                                (register-exp-reg exp))))
+           (lambda () (get-contents r))))
+        (else
+         (error "Unknown expression type: ASSEMBLE" exp))))
+
+(define (register-exp? exp) (tagged-list? exp 'reg))
+(define (register-exp-reg exp) (cadr exp))
+(define (constant-exp? exp) (tagged-list? exp 'const))
+(define (constant-exp-value exp) (cadr exp))
+(define (label-exp? exp) (tagged-list? exp 'label))
+(define (label-exp-label exp) (cadr exp))
+
+assign, perform, test命令は(op式により指定される)機械の演算命令の(regとconst式により指定される)いくつかのオペランドへの適用を含むかもしれない。
+以下の手続きは演算命令式 - 命令からの演算命令とオペランドの式を含むリスト - に対する実行手続きを生成する。
+
+(define (make-operation-exp exp machine labels operations)
+  (let ((op (lookup-prim (operation-exp-op exp)
+                         operations))
+        (aprocs
+         (map (lambda (e)
+                (make-primitive-exp e machine labels))
+              (operation-exp-operands exp))))
+    (lambda ()
+      (apply op (map (lambda (p) (p)) (aprocs))))))
+
+演算命令式の構文は以下により決定される。
+(define (operation-exp? exp)
+  (and (pair? exp) (tagged-list? (car exp) 'op)))
+(define (operation-exp-op operation-exp)
+  (cadr (car operation-exp)))
+(define (operation-exp-operands operation-exp)
+  (cdr operation-exp))
+
+(define (lookup-prim symbol operations)
+  (let ((val (assoc symbol operations)))
+    (if val
+        (cadr val)
+        (error "Unknown operation: ASSEMBLE" symbol))))
+

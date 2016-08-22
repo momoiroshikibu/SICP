@@ -49,3 +49,41 @@ receiveは2つの値と共に呼び出される。
 extract-labelsは連続してtext要素を操作し、instsとlabelsを集積することで働く。
 もし要素がシンボル(従ってラベル)なら適切なエントリがlabelsテーブルに追加される。
 そうでなければその要素はinstsリスト上に集積される。
+
+update-insts!は命令リストを変更する。
+これは初期値としては命令のテキストのみを含みますが、対応する実行手続きを含むようになる。
+(define (update-insts! insts labels machine)
+  (let ((pc (get-register machine 'pc))
+        (flag (get-register machine 'flag))
+        (stack (machine 'stack))
+        (ops (machine 'operations)))
+    (for-each
+     (lambda (inst)
+       (set-instruction-execution-proc!
+        inst
+        (make-execution-procedure
+         (instruction-text inst)
+         labels machine pc flag stack ops)))
+     insts)))
+
+マシン語データ構造は単純に命令テキストと対応する実行手続きのペアを作ります。
+実行手続きはextract-labelsが命令を構築した時にはまだ存在せず、後にupdate-insts!により挿入される。
+
+(define (make-instruction text) (cons text '()))
+(define (instruction-text inst) (car inst))
+(define (instruction-execution-proc inst) (cdr inst))
+(define (set-instruction-execution-proc! inst proc)
+  (set-cdr! inst proc))
+
+命令テキストはシミュレータでは使用されない。しかし、デバッグのために手元においておくと便利。
+ラベルテーブルの要素はペア
+(define (make-label-entry label-name insts)
+  (cons label-name insts))
+
+テーブル内の要素は以下により検索される。
+(define (lookup-label labels label-name)
+  (let ((val (assoc label-name labels)
+             (if val
+                 (cdr val)
+                 (error "Undefined label: ASSEMBLE" label-name))))))
+

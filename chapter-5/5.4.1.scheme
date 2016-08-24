@@ -27,3 +27,30 @@ eval-dispatch
 (goto (label unknown-expression-type))
 
 
+単純な式の評価
+数値と文字列(これらは自己評価)、変数、クォーテーション、そしてlambda式は評価するべき部分式がありません。
+これのために、評価機は単純に正しい値をvalレジスタに配置し、continueにより指定されたエントリポイントから継続します。
+単純な式の評価は以下のコントローラのコードにより実行されます。
+
+ev-self-eval
+(assign val (reg exp))
+(goto (reg continue))
+
+ev-variable
+(assign
+ val (op lookup-variable-value) (reg exp) (reg env))
+(goto (reg continue))
+
+eva-quoted
+(assign val (op text-of-quotation) (reg exp))
+(goto (reg continue))
+
+ev-lambda
+(assign unev (op lambda-parameters) (reg exp))
+(assign exp (op lambda-body) (reg exp))
+(assign val (op make-procedure)
+        (reg unev) (reg exp) (reg env))
+(goto (env continue))
+
+ev-lambdaがどのようにunevとexpレジスタを用いてラムダ式のパラメタとボディを保持し、envの中の環境と共にmake-procedure命令に引き渡されるのか観察してください。
+

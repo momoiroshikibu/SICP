@@ -54,3 +54,42 @@ ev-lambda
 
 ev-lambdaがどのようにunevとexpレジスタを用いてラムダ式のパラメタとボディを保持し、envの中の環境と共にmake-procedure命令に引き渡されるのか観察してください。
 
+
+手続適用の評価
+手続きの適用はオペレータとオペランドを含む組み合わせにより指定します。
+オペレータはその値が手続きとなる部分式であり、オペランドはその値が引数となる部分式で、その引数に対して手続きが適用されねばならない。
+メタ循環のevalは適用をそれ自身を再帰的に呼び出すことで扱い、組み合わせの各要素を評価し、そして結果をapplyに渡します。
+これが実際の手続き適用を実行します。明示的制御評価機も同じことを行います。
+これらの再帰呼び出しはgoto命令と共に、スタックを使用して再帰呼び出しから戻った時に再格納されるようにレジスタを保存することで実装される。
+各呼び出しの前にどのレジスタが保存されなければならないのかの確認に注意をしなければなりません。
+
+適用の評価はオペレータを評価し手続きを生成することから開始します。
+手続きは後に評価されたオペランドに適用されます。
+オペレータを評価するためには、それをexpレジスタに移動させ、eval-dispatchへ飛びます。
+envレジスタ内の環境は既にその中でオペレータを評価するために適切なものになっていますが、それでもenvを保存します。
+オペランドの評価にも必要なためです。またオペランドをunevの中に展開し、スタック上にこれを保存します。
+continueに対しeval-dispatchがオペレータの評価が完了した後にev-appl-did-operatorにてresumeできるように設定します。
+しかし、最初にcontinueの古い値は保存します。これがコントローラに対し適用後にどこから続行するのかを告げるためです。
+
+ev-application
+(save continue)
+(save env)
+(assign unev (op operands) (reg exp))
+(save unev)
+(assign exp (op operator) (reg exp))
+(assign continue (label ev-appl-did-operator))
+(goto (label eval-dispatch))
+
+オペレータ式の部分式の評価から帰還すると、組み合わせのオペランドの評価と、結果としての引数をarglに保持されるリストの中への蓄積へと進みます。
+最初に未評価のオペランドと環境を戻します。arglを空リストに初期化します。
+そしてprocレジスタにオペレータの評価により生成された手続きを割り当てます。
+もしオペランドが無ければ、直接apply-dispatchへと進みます。そうでなければ、procをスタックに保存し引数評価ループを開始します。
+
+ev-appl-did-operator
+(restore unev)
+(restore env)
+(assign argl (op empty-arglist))
+(assign proc (reg val))
+(test (op no-operands?) (reg unev))
+(branch (label apply-dispatch))
+(save proc)

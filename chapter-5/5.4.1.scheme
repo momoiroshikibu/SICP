@@ -93,3 +93,47 @@ ev-appl-did-operator
 (test (op no-operands?) (reg unev))
 (branch (label apply-dispatch))
 (save proc)
+
+引数評価ループの各サイクルはunevの中のリストからオペランドを評価し、その結果をarglの中に蓄積します。
+オペランドを評価するために、それをexpレジスタの中に入れ、実行が引数蓄積段階から再開できるようcontinueを設定した後にeval-dispatchに飛びます。
+しかし、私たちはそれまでに(arglに保持されている)蓄積された引数、環境(envに維持)、評価されていない残りのオペランド(unevが保持)を保存します。最後のオペランドの評価は特別な場合として扱われ、ev-appl-last-argにより取り扱われます。
+
+ev-appl-operand-loop
+(save argl)
+(assign exp (op first-operand) (reg unev))
+(test (op last-operand?) (reg unev))
+(branch (label ev-appl-last-arg))
+(save env)
+(save unev)
+(assign continue (label ev-appl-accumulate-arg))
+(goto (label eval-dispatch))
+
+オペランドが評価された時に、その値はarglにて保持されるリストの中に蓄積されます。
+そのオペランドはその後unev中の未評価オペランドのリストから消され、引数評価が続行されます。
+
+ev-appl-accumulate-arg
+(restore unev)
+(restore env)
+(restore argl)
+(assign argl (op adjoin-arg) (rev val) (reg argl))
+(assign unev (op rest-operands) (reg unev))
+(goto (label ev-appl-operand-loop))
+
+最後の引数は異なる扱いを受けます。環境や未評価のオペランドのリストをeval-dispatchに飛ぶ前に保存する必要がありません。
+最後のオペランドが評価された後にそれらは必要が無いためです。
+従って評価から特別なエントリポイントev-appl-accum-last-argeに帰ります。
+これは引数リストを戻し、新しい引数を蓄積し、保存された手続きを戻し、適用を実行するために飛びます。
+
+ev-appl-last-arg
+(assign continue (label ev-appl-accum-last-arg))
+(goto (label eval-dispatch))
+
+ev-appl-accum-last-arg
+(restore argl)
+(assign argl (op adjoin-arg) (reg val) (rev argl))
+(restore proc)
+(goto (label apply-dispatch))
+
+引数評価ループの詳細はインタプリタが組み合わせのオペランドを評価する順を決定します。
+この順はメタ循環評価機では決定されません。その制御構造をその基礎をなし、実装を行うSchemeから継承するため。
+

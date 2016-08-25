@@ -137,3 +137,46 @@ ev-appl-accum-last-arg
 引数評価ループの詳細はインタプリタが組み合わせのオペランドを評価する順を決定します。
 この順はメタ循環評価機では決定されません。その制御構造をその基礎をなし、実装を行うSchemeから継承するため。
 
+
+手続適用
+エントリポイントapply-dispatchはメタ循環評価機のapply手続きに対応する。
+apply-dispatchに到達する時に、procレジスタは適用するための手続きを持ち、arglは適用するべき評価された引数のリストを持ちます。(もともとはeval-dispatchに渡され、ev-applicationで保存された)continueの保存された値は手続き適用の結果と共に帰る場所を伝えるが、スタック上に存在する。
+適用が完了した時に、コントローラは保存されたcontinueにより指示されたエントリポイントへ、val内の適用の結果と共に移動します。
+メタ循環のapplyと同様に、考慮すべき2つの場合が存在します。
+適用すべき手続きはプリミティブであるか、または複合手続きであるかです。
+
+apply-dispatch
+(test (op primitive-procedure?) (reg proc))
+(branch (label primitive-apply))
+(test (op compound-procedure?) (reg proc))
+(branch (label compound-apply))
+(goto (label unknown-procedure-type))
+
+各プリミティブは引数をarglから取得し、その結果をval内に実装されていると想定されます。
+機械がどのようにプリミティブを扱うかを指定するためには、それぞれのプリミティブを実装するための一連のコントローラ命令を提供しなければならず、procの中身により判別されたプリミティブのための命令への割り振りを行うようにprimitive-applyを準備しなければなりません。
+評価処理の構造に興味が有るため、それらの代わりに単にapply-primitive-procedureを使用する。
+これはproc内の手続きをargl内の引数に対して適用する。
+根底にあるSchemeシステムを適用を実行するために呼び出す。
+プリミティブの適用の値を計算した後に、continueを戻して指定されたエントリポイントに飛ぶ。
+
+primitive-apply
+(assign val (op apply-primitive-procedure)
+        (reg proc)
+        (reg argl))
+(restore continue)
+(goto (reg continue))
+
+複合手続きを適用するためには、メタ循環評価機と全く同様に進行する。
+手続きのパラメタを引数に束縛するフレームを構築し、このフレームを用いて手続きにより運ばれた環境を拡張子、この拡張環境の中で手続きのボディを形成する式の列を評価する。
+
+compound-apply
+(assign univ (op procedure-parameters) (reg proc))
+(assivn env (op procedure-environment) (reg proc))
+(assign env (op extend-environment)
+        (reg univ) (reg argl) (reg env))
+(assign univ (op procedure-body) (reg proc))
+(goto (label ev-sequence))
+
+compound-applyはenvレジスタが新しい値を割り当てられるインタプリタ内で唯一の場所。
+新しい環境は手続きにより運ばれた環境から引数リストと対応する束縛される変数のリストと共に構築される。
+

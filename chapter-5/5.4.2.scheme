@@ -1,0 +1,42 @@
+5.4.2 列の評価と末尾再帰
+
+ev-sequenceはeval-sequence手続きと道東。
+手続きのボディ内の式または明示的なbegin式内の列を取り扱う。
+
+明示的なbegin式はunev内に評価されるべき式を配置し、continueをスタック上に保存し、ev-sequenceに飛ぶことで評価される。
+ev-begin
+(assign unev (op begin-actions) (reg exp))
+(save continue)
+(goto (label ev-sequence))
+
+手続きのボディ内の暗黙的な列はcompound-applyからev-sequenceへと飛ぶことで扱われる。
+この時点でcontinueはすでにev-applicationで保存され、スタック上に存在する。
+ev-sequenceとev-sequence-continueのエントリポイントはループを形成し、連続して列内の各式を評価します。
+未評価の式のリストはunevに保持されている。
+各式の評価の前に列内にさらなる評価すべき式が存在しないかどうかを確認する。
+もしそうであればunevに保持された未評価の式の残りとenvに保持された式の残りが評価される環境を保存し、その式を評価するために、eval-dispatchに飛ぶ。
+2つの保存されたレジスタはこの評価からの帰還時にev-sequence-continueにて戻される。
+列内の最後の式はev-sequence-last-expにて異なる取り扱いを行う。
+この後には評価すべき式はないため、unevとenvをeval-dispatchに行く前に保存する必要はない。
+列全体お値は最後の式の値であるため、最後の式の評価の後にスタック上に現時点で保存されている(ev-applicationまたはev-beginにて保存された)エントリポイントから続行すること意外に必要なことはない。
+continueを設定してeval-dispatchからここに帰るように準備し、次にスタックからcontinueの値を戻してそのエントリポイントから続行するのではなく、eval-dispatchへ行く前にスタックからcontinueを戻す。
+そうすることでeval-dispatchは式を評価した後にそのエントリポイントから続行する。
+
+ev-sequence
+(assign exp (op first-exp) (reg unev))
+(test (op last-exp?) (reg unev))
+(branch (label ev-sequence-last-exp))
+(save unev)
+(save env)
+(assign continue (label ev-sequence-continue))
+(goto (label eval-dispatch))
+
+ev-sequence-continue
+(restore env)
+(restore unev)
+(assign unev (op rest-exps) (reg unev))
+(goto (label (ev-sequence)))
+
+ev-sequence-last-exp
+(restore continue)
+(goto (label eval-dispatch))

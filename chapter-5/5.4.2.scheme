@@ -40,3 +40,53 @@ ev-sequence-continue
 ev-sequence-last-exp
 (restore continue)
 (goto (label eval-dispatch))
+
+
+末尾再帰
+(define (sqrt-iter guess x)
+  (if (good-enough? guess x)
+      guess
+      (sqrt-iter (improve guess x)
+                 x)))
+
+上は反復プロセス。
+構文的に(それ自身の単語の定義において)再帰であっても、論理的には評価機にとって、1つのsqrt-iterの呼び出しから次の呼び出しへの横断において情報を保存する必要がない。
+sqrt-iterのような手続きを、手続きがそれ自身を呼び出すことを続けるに従い記憶域を増加させる必要なしにじっこうすることが可能な評価機はtail-recursive(末尾再帰)評価機と呼ばれる。
+評価の過程を追跡し、いつ手続き呼び出しが賞味の情報集積をスタック上に引き起こすのかを確認することが出来る。
+列の最後の式を評価するために、スタック上に何の情報も保存すること無くeval-dispatchへと直接飛ぶ。
+従って、列の最後の式 - 例えもしそれが手続き呼び出しであっても(sqrt-iterのように、手続きのボディの最後の式がifであっても、sqrt-iterへの呼び出しへと監訳されます) - の評価がスタック上に何の情報の蓄積も起こさない。
+もしこの場合に情報を保存する必要がないという事実を活用することを考えなかった場合、列内にすべての式を同じように取り扱うようにeval-sequenceを実装していたことでしょう。
+レジスタの保存、式の評価、レジスタを戻すために帰る、これらを全ての式が評価されるまで繰り返したことでしょう。
+
+ev-sequence
+(test (op no-more-exps?) (reg unev))
+(branch (label ev-sequence-end))
+(assign exp (op first-exp) (reg unev))
+(save unev)
+(save env)
+(assign continue (label ev-sequence-continue))
+(goto (label eval-dispatch))
+
+ev-sequence-continue
+(restore env)
+(restore unev)
+(assign unev (op test-exps) (reg unev))
+(goto (label ev-sequence))
+ev-sequence-end
+(restore continue)
+(goto (reg continue))
+
+唯一の違いは保存と再格納のサイクルを他と同様に列の最後の式でも通すこと。
+インタプリタは依然としてどの指揮に対しても同じ値を与えます。
+しかし、この変更は末尾再帰の実装としては致命的。
+なぜなら、これで
+私たちは式の評価後にも(仕様価値の無い)レジスタの保存を戻すために帰らねばならない。
+これらの余分な保存は入れ子の呼び出し手続きの間で蓄積されます。
+その結果として、sqrt-iterのようなプロセスは一定要領を必要とするのではなく、繰り返しの回数に比例する記憶域を必要とする。
+末尾再帰を用いれば、無限ループは手続き呼び出しの仕組みだけを用いて表現できる。
+
+(define (cont n)
+  (newline (display n) (count (+ n 1))))
+
+末尾再帰が無ければ、そのような手続きはいつかはスタック領域を使い尽くします。
+そして真に反復を表現することは手続き呼び出し以外の何らかの制御の仕組みを必要とする。

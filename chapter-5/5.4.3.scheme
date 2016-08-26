@@ -34,3 +34,43 @@ ev-if-consequent
 (goto (label eval-dispatch))
 
 
+代入と定義
+ev-assignmentにより扱われる。ここではeval-dispatchから代入式がexpの中にある状態で到達します。
+ev-assignmentの最初のコードは式の部分の値を評価し、次に新しい値を環境に導入します。
+set-variable-value!が機械語命令として必要可能であると前提します。
+
+ev-assignment
+(assign unev (op assignment-variable) (reg exp))
+(save unev)
+(assign exp (op assignment-value) (reg exp))
+(save env)
+(save continue)
+(assign continue (label ev-assignment-1))
+(goto (label eval-dispatch))
+
+ev-assignment-1
+(restore continue)
+(restore env)
+(restore unev)
+(perform
+ (op set-variable-value!) (reg unev) (reg val) (reg env))
+(assign val (const ok))
+(goto (reg continue))
+
+ev-definition
+(assign unev (op definition-variable) (reg exp))
+(save unev)
+(assign exp (op definition-value) (reg exp))
+(save env)
+(save continue)
+(assign continue (label ev-definition-1))
+(goto (label eval-dispatch))
+
+ev-definition-1
+(restore continue)
+(restore env)
+(restore unev)
+(perform
+ (op define-variable!) (reg unev) (reg val) (reg env))
+(assign val (const ok))
+(goto (reg continue))

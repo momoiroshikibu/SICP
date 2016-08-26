@@ -1,0 +1,36 @@
+5.4.3 条件文、代入、定義
+
+特殊形式は選択的に式の部分部分を評価することで取り扱われる。
+if式に対しては、述語を評価して、その値を元に、結果部(consequent)と代替部(alternative)のどちらを評価するか決定します。
+述語を評価する前にif式自身を保存します。
+そうすることで後に結果部か代替部を抽出することができます。
+また後にcons,alterを評価するために必要となるので環境を保存する。
+後にifの値を持っている式の評価に戻るのに必要なためcontinueも保存する。
+
+ev-if
+(save exp)
+(save env)
+(save continue)
+(asssign continue (label ev-if-decide))
+(assign exp (op if-predicate) (reg exp))
+(goto (label eval-dispatch))
+
+述語の評価から戻る時、真か偽をテストし、結果によりeval-dispatchに飛ぶ前にexpに結果部か代替部を配置する。
+envとcontinueをここで戻すことがeval-dispatchに正しい環境をもたせ、正しい場所から継続しif式の値を受け取るように設定している。
+
+ev-if-decide
+(restore continue)
+(restore env)
+(restore exp)
+(test (op true?) (reg val))
+(branch (label ev-if-consequent))
+
+ev-if-alternative
+(assign exp (op if-alternative) (reg exp))
+(goto (label eval-dispatch))
+
+ev-if-consequent
+(assign exp (op if-consequent) (reg exp))
+(goto (label eval-dispatch))
+
+

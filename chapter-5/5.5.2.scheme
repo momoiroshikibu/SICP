@@ -1,0 +1,27 @@
+5.5.2 式のコンパイル
+
+リンクコードのコンパイル
+一般的に、各コード生成器の出力は手続きcompile-linkageにより生成された、要求されたリンク記述子を実装した命令で終わる。
+もしリンク記述子がreturnなら、命令(goto (reg continue))を生成しなければならない。
+これはcontinueレジスタを必要とし、他のレジスタを変更はしない。
+もしリンク記述子がnextなら、なんの追加の命令も必要ない。
+さもなければ、リンク記述子はラベルであり、そのラベルへのgotoを生成する。
+この命令はレジスタを必要とせず、変更もしない。
+
+(define (compile-linkage) linkage
+  (cond ((eq? linkage 'return)
+         (make-instruction-sequence '(continue) '()
+                                    '((goto (reg continue)))))
+        ((eq? linkage 'next)
+         (empty-instruction-sequence))
+        (else
+         (make-instruction-sequence '() '()
+                                    `((goto (label ,linkage)))))))
+
+リンクのコードが命令列に対しpreservingによりcontinueレジスタを維持しながら追加される。
+リンク記述子returnがcontinueレジスタを必要とするため。
+もし与えられた命令列がcontinueを変更し、リンクのコードがそれを必要とする場合、continueは保存と復元が行われる。
+(define (end-with-linkage linkage instruction-sequence)
+  (preserving '(continue)
+              instruction-sequence
+              (compile-linkage linkage)))

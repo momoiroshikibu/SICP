@@ -1,0 +1,51 @@
+5.5.1 コンパイラの構造
+
+手続きcompileはコンパイラ内のトップレベルの割り振り。
+analyze, eval-dispatchに対応する。
+compileはコンパイルされる式の構文の方の事例分析を実行する。
+各式の型に対し、特別なcode generatorを割り振る。
+
+
+(define (compile exp target linkage)
+  (cond ((self-evaluating? exp)
+         (compile-self-evaluating exp target linkage))
+        ((quoted? exp) (compile-quoted exp target linkage))
+        ((variable? exp)
+         (compile-variable exp target linkage))
+        ((assignment? exp)
+         (compile-assignment exp target linkage))
+        ((definition? exp)
+         (compile-definition exp target linkage))
+        ((if? exp) (compile-if exp target linkage))
+        ((lambda? exp) (compile-lambda exp target linkage))
+        ((begin? exp)
+         (compile-sequence
+          (begin-actions exp) target linkage))
+        ((cond? exp)
+         (compile (cond->if exp) target linkage))
+        ((application? exp)
+         (compile-application exp target linkage))
+        (else
+         (error "Unknown expression type: COMPILE" exp))))
+
+
+ターゲットとリンク記述子
+compileとそれが呼ぶコード生成器はコンパイル対象の式に加えて2つの引数を取ります。
+コンパイルされたコードがその中で式の値を返すレジスタを指定するtargetと実行が完了した時に、式のコンパイル結果としてのコードがどのように続けるべきかを説明するlinkage descriptor(リンク記述子)です。
+リンク記述子はコードが以下の3つのうち1つを行うよう要求することができる。
+
+・列の次の命令を続ける(next)
+・コンパイルしている手続きから戻る(return)
+・名前付きエントリポイントへ飛ぶ(ラベル)
+
+例えば、式5(自己評価型)をターゲットをレジスタvalリンク記述子をnextでコンパイルするとき、以下の命令を生成する。
+(assign val (const 5))
+
+同じ指揮をリンク記述子returnでコンパイルするときには以下の命令
+(assign val (const 5))
+(goto (reg continue))
+
+最初の場合は、実行は列内の次の命令と共に続行する。
+2つ目の場合には、手続き呼び出しから戻る。
+両者の場合において、式の値はターゲットレジスタvalに配置される。
+

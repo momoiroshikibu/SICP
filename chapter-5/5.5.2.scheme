@@ -133,3 +133,65 @@ condは派生式であることに注意。そのためコパイらが取り扱�
                   (compile (first-exp seq) target 'next)
                   (compile-sequence (rest-exps seq) target linkage))))
 
+
+lambda式のコンパイル
+lambda式は手続きを構築します。lambda式のためのオブジェクトコードは以下の形式に従わなければならない。
+<手続きオブジェクトの構築
+ ターゲットレジスタにそれを割り当てる>
+<リンク>
+
+lambda式をコンパイルする時、手続きのボディのためのコードも生成する。
+たとえボディが手続き構築時に実行されなくても、オブジェクトコードの中のlambda式のコードの直後に挿入しておくことは便利。
+もしlambda式に対するリンク記述子がラベルかreturnならば、このことに問題はない。
+しかし、もしリンク記述子がnextならば、手続きのボディの後ろに挿入されたラベルへ飛ぶリンク記述子を使用することによりボディに対するコードを回避する必要がある。
+従ってオブジェクトコードは以下の形式になる。
+
+<手続きオブジェクトの構築
+ それをターゲットレジスタに割当>
+ <与えられたリンク記述子に対するコード>または(goto (label after-lambda))
+ <手続きボディのコンパイル後コード>
+after-lambda
+
+compile-lambdaは手続きのボディのコードが続く手続きオブジェクトを構築するためのコードを生成する。
+手続きオブジェクトは実行時に現在の環境(定義時点での環境)をコンパイルされた手続きのボディのエントリポイント(新しく生成されたラベル)と共に組み立てることで構築される。
+
+(define (compile-lambda exp target linkage)
+  (let ((proc-entry (make-label 'entry))
+        (after-lambda (make-label 'after-lambda)))
+    (let ((lambda-linkage
+           (if (eq? linkage 'next) after-lambda linkage)))
+      (append-instruction-sequences
+       (take-on-instruction-sequence
+        (end-with-linkage lambda-linkage
+                          (make-instruction-sequence '(env) (list target)
+                                                     `((assign ,target
+                                                               (op make-compiled-procedure)
+                                                               (label ,proc-entry)
+                                                               (reg env)))))
+        (compile-lambda-body exp proc-entry))
+       after-lambda))))
+
+compile-lambdaはappend-instruction-sequencesではなく、特別な結合器take-on-instruction-sequenceを手続きのボディとlmabda式のコードを接続するのに利用する。
+ボディは組み立てられた列が入力された時に実行される命令列の一部ではないため。
+そうではなく、それはただ、底に置くことが便利だから、その列の中にある。
+compile-lambda-bodyは手続きのボディのためのコードを構築する。
+このコードはエントリポイントに対するラベルで開始する。
+次に来るのは実行時の環境を手続きのボディの評価を評価するために正しい環境へとスイッチする命令列。
+すなわち、手続きの定義環境であり、これは手続きが呼ばれる時に利用される引数に対する形式パラメタの束縛を含むように拡張されている。
+これの後には、式の列のコードが来る。これが手続きのボディを作り上げる。
+この列はリンク記述子returnとターゲットvalと共にコンパイルされるため、手続きの結果はvalに入れられた状態で手続きから戻ることで終わる。
+
+(define (compile-lambda-body exp proc-entry)
+  (let ((formals (lambda-parameters exp)))
+    (append-instruction-sequences
+     (make-instruction-sequence '(env proc argl) '(env)
+                                `(,proc-entry
+                                  (assign env
+                                          (op compiled-procedure-env)
+                                          (reg proc))
+                                  (assign env
+                                          (op extend-environment)
+                                          (const ,formals)
+                                          (reg argl)
+                                          (reg env))))
+     (compile-sequence (lambda-body exp) 'val 'return))))

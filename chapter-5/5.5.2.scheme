@@ -120,3 +120,16 @@ envは述語コードの間維持される。
 condは派生式であることに注意。そのためコパイらが取り扱いのために必要なこと全てはcond-if変換器を適用して、結果のif式をコンパイルするだけ。
 
 
+列のコンパイル
+列のコンパイル(手続きのボディ、または明示的なbegin式)はそれらの評価を並列化する。
+列の各式は次の条件でコンパイルされる。最後の式は列に対して指示されたリンク記述子を用いて。
+他の式はリンク記述子nextを用いて(列の残りを実行するために)
+個別の式の命令列は接続され単一の命令列を形成する。
+列の残りのために必要なenvと(列の終わりのリンクコードで必要な可能性のある)continueは維持される。
+(define (compile-sequence seq target linkage)
+  (if (last-exp? seq)
+      (compile (first-exp seq) target linkage)
+      (preserving '(env continue)
+                  (compile (first-exp seq) target 'next)
+                  (compile-sequence (rest-exps seq) target linkage))))
+

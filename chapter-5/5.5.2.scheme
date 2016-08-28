@@ -70,3 +70,53 @@
 
 接続された2つの命令列はenvとvalを必要とし、ターゲットを変更する。
 たとえenvをこの列のために維持したとしても、valは維持しない。get-value-codeが明示的にその結果をこの命令列のためにvalに配置するように設計されているため。
+
+
+条件式のコンパイル
+与えられたターゲットとリンク記述子と共にコンパイルされるif式のためのコードは以下の形式を持つ。
+<述語のコンパイル, ターゲットval, リンク記述子next>
+(test (op false?) (reg val))
+(branch (label false-branch))
+
+true-branch
+<結果部与えられたターゲット与えられたリンク記述子またはafter-if>
+false-branch
+<代替部与えられたターゲットリンク記述子>
+after-if
+
+このコードを生成するために、述語、結果部、代替部をコンパイルし、結果のコードを述語の結果をテストするコードと新しく生成された真と偽の分岐をマークするラベルと条件分の最後とともに組み立てる。
+このコードの準備では、テストが偽である場合、真の分岐へと飛ぶ必要がある。
+唯一、微妙に複雑なのは真の分岐がリンク記述子をどのように扱うかについて。
+もし条件分のリンク記述子がreturnまたはラベルの場合、信徒義の分岐は両方共これと同じリンク記述子を用いる。
+もしリンク記述子がnextなら真の分岐は偽の分岐を飛び越し条件分の最後へと飛ぶコードで終わる。
+
+(define (compile-if exp target linkage)
+  (let ((t-branch (make-label 'true-branch))
+        (f-branch (make-label 'false-branch))
+        (after-if (make-label 'after-if)))
+    (let ((consequent-linkage
+           (if (eq? linkage 'next) after-if linkage)))
+      (let ((p-code (compile (if-predicate exp) 'val 'next))
+            (c-code
+             (compile
+              (if-consequent exp) target consequent-linkage))
+            (a-code
+             (compile (if-alternative exp) target linkage)))
+        (preserving '(env continue)
+                    p-code
+                    (append-instruction-sequences
+                     (make-instruction-sequence '(val) '()
+                                                `((test (op false?) (reg val))
+                                                  (branch (label ,f-branch))))
+                     (parallel-instruction-sequences
+                      (append-instruction-sequences t-branch c-code)
+                      (append-instruction-sequences f-branch a-code))
+                     after-if))))))
+
+envは述語コードの間維持される。
+真と偽の分岐で必要になるかもしれないため。
+そしてcontinueもそれら分岐内でリンクのためのコードにてしようされるかもしれないため維持される。
+真と偽の分岐のためのコードはparallel-instruction-sequencesを使用して接続される。
+condは派生式であることに注意。そのためコパイらが取り扱いのために必要なこと全てはcond-if変換器を適用して、結果のif式をコンパイルするだけ。
+
+

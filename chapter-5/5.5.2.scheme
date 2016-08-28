@@ -25,3 +25,48 @@
   (preserving '(continue)
               instruction-sequence
               (compile-linkage linkage)))
+
+
+単純な式のコンパイル
+自己評価式、クォート、変数に対するコード生成器は必要な値をターゲットのレジスタに割当リンク記述子により指示されたように勧める命令列を構築します。
+(define (compile-self-evaluating exp target linkage)
+  (end-with-linkage linkage
+                    (make-instruction-sequence '() (list target)
+                                               `((assign ,target (const ,exp))))))
+(define (compile-quoted exp target linkage)
+  (end-with-linkage linkage
+                    (make-instruction-sequence '() (list target)
+                                               `((assign ,target (const ,(text-of-quotation exp)))))))
+(define (compile-variable exp target linkage)
+  (end-with-linkage linkage
+                    (make-instruction-sequence '(env) (list target)
+                                               `((assign ,target
+                                                         (op lookup-variable-value)
+                                                         (const ,exp)
+                                                         (reg env))))))
+
+これらすべての代入命令はターゲットレジスタを変更します。
+また変数の検索を行うものはenvレジスタを必要とします。
+代入と定義はインタプリタのものと同様に扱われます。再帰的に変数に割り当てられる値を求めるコードを生成し、それに対して実際に変数の設定、
+または定義を行うものと式全体の値(シンボルOK)を割り当てるものの2つの命令列を接続します。
+再帰的なコンパイルはターゲットvalとリンク記述子nextを持つのでコードはその結果をvalに入れ、その後に接続されたコードを用いて続けられる。
+接続はenvを維持(preserving)している間に行われる。
+環境が変数の設定、または定義のため必要なため。
+また変数の値のためのコードは複雑な式のコンパイルとなり得るため任意の方法でレジスタを変更する可能性がある。
+
+(define (compile-assignment exp target linkage)
+  (let ((var (assignment-variabel exp))
+        (get-value-code
+         (compile (assignment-value exp) 'val 'next)))
+    (end-with-linkage linkage
+                      (preserving '(env)
+                                  get-value-code
+                                  (make-instruction-sequence '(env val) (list target)
+                                                             `((perform (op set-variable-value!)
+                                                                        (const ,var)
+                                                                        (reg val)
+                                                                        (reg env))
+                                                               (assign ,target (const ok))))))))
+
+接続された2つの命令列はenvとvalを必要とし、ターゲットを変更する。
+たとえenvをこの列のために維持したとしても、valは維持しない。get-value-codeが明示的にその結果をこの命令列のためにvalに配置するように設計されているため。

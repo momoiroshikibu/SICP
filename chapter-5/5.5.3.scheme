@@ -1,0 +1,88 @@
+5.5.3 組み合わせのコンパイル
+
+コンパイル処理の本質は手続き適用のコンパイル。
+与えられたターゲットとリンク記述子と共にコンパイルされた組み合わせのコードは以下の形式を持つ。
+<演算子のコンパイル, ターゲットproc, リンク記述子 next>
+<オペランドを評価し、argl内に引数リストを構築>
+<手続き呼び出しのコンパイル
+ 与えられたターゲットとリンク記述子と共に>
+
+レジスタenv, proc, arglはオペレータ(演算子)とオペランドの評価の間に保存と復元を行う必要があるかもしれない。
+ここだけがこのコンパイラにおいてval以外のターゲットが指定される箇所であることに注意。
+必要なコードはcompile-applicationにより生成される。
+これは再帰的にオペレータをコンパイルしてprocに適用する手続きを配置するコードを生成し、オペランドをコンパイルして個別の適用の個々のオペランドを評価するコードを生成する。
+オペランドの命令は(construct-arglistにより)arglに引数リストを構築するコードと共に組み合わされる。
+コードの列の接続において、envレジスタはオペレータの評価の周りにおいて維持(preserving)されていなければならない。
+(オペレータの評価がオペランドの評価で必要なenvを変更する可能性があるため)
+そしてprocレジスタは引数リストの周りで維持されなければならない。
+(オペランドの評価が実際の手続き適用に必要なprocレジスタを変更するかもしれないため。)
+continueもまたその間中、維持されなければならない。手続き呼び出しのリンクコードが必要とするため。
+
+(define (compiile-application exp target linkage)
+  (let ((proc-code (compile (operator exp) 'proc 'next))
+        (operand-codes
+         (map (lambda (operand) (compile operand 'val 'next))
+              (operands exp))))
+    (preserving '(env continue)
+                proc-code
+                (preserving '(proc continue)
+                            (construct-arglist operand-codes)
+                            (compile-procedure-call target linkage)))))
+
+引数リストを構築するためのコードはval内に評価して、次にその値をarglに蓄積される引数リスト上にconsする。
+argl上に順に引数をocnsするため、最後の引数から開始し、最初のもので終わらなければならない。
+そうすることで引数は結果リストの中に最初から最後の順で表れることになる。
+この一連の評価のための設定を行うため、arglを空に初期化することで命令をムダにするのではなく、arglの初期値を構築する最初のコード列を作成する。
+
+<最後のオペランドのコンパイル, ターゲットはval>
+(assign argl (op list) (reg val))
+<次のオペランドのこpナイル, ターゲットはval>
+(assign argl (op cons) (reg val) (reg argl))
+...
+<最初のオペランドのこpナイル, ターゲットはval>
+(assign argl (op cons) (reg val) (reg argl))
+
+arglは各オペランドの評価の間、最初の1つを除いて維持しなければならない。
+(そうすることで、そこまで蓄積した引数を失わないように)
+そしてenvは(続きのオペランド評価での仕様のため)
+各オペランドの評価の周りで、最後の1つを除いて維持されなければならない。
+
+この引数コードのコンパイルは少しだけ巧妙。
+評価する最初のオペランドの特別な扱いと、arglとenvを異なる場所にて維持する必要性のため。
+construct-arglist手続きは引数として個々のオペランドを評価するコードを取る。
+もしオペランドが全く無ければ、単純に以下の命令を発行する。
+(assign argl (const ()))
+
+そうでなければ、construct-arglistはarglを最後の引数で初期化するコードを生成し、引数の残りを評価するコードを接続し、
+それらを相次いでarglの中に隣接する。
+引数を最後から最初へ処理するために、オペランドのコード列のリストをcompile-applicationにより提供された順から逆順にするひつようがある。
+(define (construct-arglist operand-codes)
+  (let ((oeprand-codes (reverse operand-codes)))
+    (if (null? operand-codes)
+        (make-instruction-sequence '() '(argl)
+                                   '((assign argl (const ()))))
+        (let ((code-to-get-last-arg
+               (append-instruction-sequences
+                (car operand-codes)
+                (make-instruction-sequence '(val) '(argl)
+                                           ''((assign argl (op list) (reg val)))))))
+          (if (null? (cdr operand-codes))
+              code-to-get-last-arg
+              (preserving '(env)
+                          code-to-get-last-arg
+                          (code-to-get-rest-args
+                           (cdr operand-codes))))))))
+
+(define (code-to-get-rest-args operand-codes)
+  (let ((code-for-next-arg
+         (preserving '(argl)
+                     (car operand-codes)
+                     (make-instruction-sequence '(val argl) '(argl)
+                                                '((assign argl
+                                                          (op cons) (reg val) (reg argl)))))))
+    (if (null? (cdr operand-codes))
+        code-for-next-arg
+        (preserving '(env)
+                    code-for-next-arg
+                    (code-to-get-rest-args (cdr operand-codes))))))
+

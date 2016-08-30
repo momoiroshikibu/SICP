@@ -136,3 +136,90 @@ after-call
 それらは順には実行されないため。
 
 
+コンパイル済み手続きの適用
+手続きの適用を取り扱うコードはコンパイラの最も微妙な部分。
+例えそれが生成する命令列がとても短くても変わらない。
+(compile-lambdaにより構築されたような)コンパイルされた手続きは手続きが開始する場所を指定するラベルであるエントリポイントを持つ。
+このエントリポイントにてコードはvalに結果を求め、命令(goto (reg continue))を実行することにより戻る。
+従って与えられたターゲットとリンク奇術師を伴う(compile-proc-applにより生成される)コンパイルされた手続きの適用はリンク奇術師がラベルであれば以下のようになる。
+
+(assign continue (label proc-return))
+(assign val (op compiled-procedure-entry) (reg proc))
+(goto (reg val))
+proc-return
+(assign <target> (reg val)) ; ターゲットがvalでなければ含まれる
+(goto (label <リンク記述子>))
+またはリンク記述子がreturnの場合は次の通り。
+(save continue)
+(assign continue (label proc-return))
+(assign val (op compiled-procedure-entry) (reg proc))
+(goto (reg val))
+proc-return
+(assign <target> (reg val))
+(restore continue)
+(goto (reg continue))
+
+このコードは手続きがproc-returnに戻るようにcontinueを設定し、手続きのエントリポイントへと飛ぶ。
+proc-returnのコードは手続きの結果をvalからターゲットレジスタへと転送し、次にリンク記述子により指定された位置へと飛ぶ。
+実際には、もしターゲットがvalでなければ、それはまさに私達のコンパイラが生成するコード。
+しかし、通常はターゲットはvalであり、そのための手続きの結果は直接ターゲットレジスタに入れられ、コピーを行う特別な位置へ戻る必要はない。
+その代わりに、手続きが直接呼び出しの元のリンク記述子により指定される場所へ直接戻るようにcontinueを設定する。
+
+<continueにリンク記述子を設定>
+(assign val (op compiled-procedure-entry) (reg proc))
+(goto (reg val))
+
+もしリンク記述子がラベルならば、手続きがそのラベルに戻るようにcontinueを設定する。
+(assign continue (label <リンク記述子>))
+(assign val (op compiled-procedure-entry) (reg proc))
+(goto (reg val))
+
+もしリンク記述子がreturnなら、continueを設定する必要はない。
+それは既に望まれた位置を持っている。
+(assign val (op compiled-procedure-entry) (reg proc))
+(goto (reg val))
+
+このリンク記述子returnの実装を用いて、コンパイラは末尾再帰のコードを生成する。
+手続きボディの最後のステップとしての手続き呼び出しは直接移動を行いスタック上にどのような情報も保存しない。
+その代わりに、手続き呼び出しの場合をreturnとターゲットvalを用いて、上記で示されたようにval以外のターゲットに対しても取り扱ったと仮定する。これは末尾再帰を損なう。
+それでも、私達のシステムは任意の式に対して同じ値を与える。
+しかし、私達が手続きを呼ぶ度に、continueを保存し、呼び出しの後に保存の取り消しを呼び出すことになる。
+これらの余分な保存が入れこの手続呼び出しの間に蓄積される。
+
+codecompile-proc-applは上記の手続き適用のコードを生成する。
+これは呼び出しのためのターゲットがvalであるか、そしてリンク記述子がreturnであるかについて依存する4つの場合について考慮する。
+命令列が全てレジスタを変更するために宣言されることについて注意。
+手続きのボディの実行が自由な形でレジスタを変更することができるため。
+ターゲットがvalであり、リンク記述子がreturnの場合に対するコードの列はcontinueを必要とすると宣言されていることに注意。
+
+(define (compile-proc-appl target linkage)
+  (cond ((and (eq? target 'val) (not (eq? linkage 'return)))
+         (make-instruction-sequence '(proc) all-regs
+                                    `((assign continue (label ,linkage))
+                                      (assign val (op compiled-procedure-entry)
+                                              (reg proc))
+                                      (goto (reg val)))))
+        ((and (not (eq? target 'val))
+              (not (eq? linkage 'return)))
+         (let ((proc-return (make-label 'proc-return)))
+           (make-instruction-sequence '(proc) all-regs
+                                      `((assign continue (label ,proc-return))
+                                        (assign val (op compiled-procedure-entry)
+                                                (reg proc))
+                                        (goto (reg val))
+                                        ,proc-return
+                                        (assign ,target (reg val))
+                                        (goto (label ,linkage))))))
+        ((and (eq? target 'val) (eq? linkage 'return))
+         (make-instruction-sequence
+          '(proc continue)
+          all-regs
+          '((assign val (op compiled-parocedure-entry)
+                    (reg proc))
+            (goto (reg val)))))
+        ((and (not (eq? target 'val))
+              (eq? linkage 'return))
+         (and (not (eq? target 'val))
+              (eq? linkage 'return))
+         (error "return linkage, target not val: COMPILE" target))))
+

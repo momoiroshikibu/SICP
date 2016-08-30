@@ -21,3 +21,37 @@
 結果の命令列により必要とされる、または変更されるレジスタの決定が繊細な点になる。
 これは命令列のどれかにより変更されるレジスタが変更される。
 またこれは最初の命令列が実行する前に初期化されなければならないレジスタ(最初の命令列で必要とされるレジスタ)に加えて、それに続く命令列により初期化されない(変更されない)他の命令列により必要とされるレジスタ全て。
+
+命令列はappend-2-sequencesにより一度に2つが接続される。
+これは2つの命令列seq1とseq2を取り、命令文がseq1の命令文の後にseq2の命令文が置かれる命令列を返す。
+これの変更されたレジスタはseq1かseq2のどちらかにより変更されたレジスタ。
+そして必要とされるレジスタはseq1により必要とされるレジスタとseq2で必要とされseq1で変更されないレジスタを加えたもの。
+(define (append-instruction-sequence .seqs)
+  (define (append-2-sequences seq1 seq2)
+    (make-instruction-sequence
+     (list-union
+      (registers-needed seq1)
+      (list-difference (registers-needed seq2)
+                       (registers-modified seq1)))
+     (list-union (registers-modified seq1)
+                 (registers-modified seq2))
+     (append (statements seq1) (statements seq2))))
+  (define (append-seq-list seqs)
+    (if (null? seqs)
+        (empty-instruction-sequence)
+        (append-2-sequences
+         (car seqs)
+         (append-seq-list (cdr seqs)))))
+  (append-seq-list seqs))
+
+この手続はリストとして表現された集合を操作するためのいくつか簡単な命令を使います。
+順序なし集合表現と同様。
+(define (list-union s1 s2)
+  (cond ((null? s1) s2)
+        ((memq (car s1) s2) (list-union (cdr s1) s2))
+        (else (cons (car s1) (list-union (cdr s1) s2)))))
+(define (list-difference s1 s2)
+  (cond ((null? s1) '())
+        ((memq (car s1) s2) (list-difference (cdr s1) s2))
+        (else (cons (car s1)
+                    (list-difference (cdr s1) s2)))))

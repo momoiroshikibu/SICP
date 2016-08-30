@@ -1,0 +1,23 @@
+5.5.4 命令列のコンパイル
+
+ラベル(シンボル)を命令列の退化した場合だと考慮する。
+これはどのレジスタも必要とせず、また変更しない。故に、命令列により必要とされる、または変更されるレジスタを決定するために以下のセレクタを使う。
+(define (registers-needed s)
+  (if (symbol? s) '() (car s)))
+(define (registers-modified s)
+  (if (symbol? s) '() (cadr s)))
+(define (statements s)
+  (if (symbol? s) (list s) (caddr s)))
+
+また与えられた命令列が与えられたレジスタを必要とするか、変更するかを決定するために以下の述語を使う。
+(define (needs-register? seq reg)
+  (memq reg (registers-needed seq)))
+(define (modifies-register? seq reg)
+  (memq reg (registers-modified seq)))
+
+これらの述語とセレクタを用いて、コンパイラを通して使用される様々な命令列の結合器を実装できる。
+基本的な結合器はappend-instruction-sequencesです。これは引数として順に実行される任意の数の命令列を取り、
+命令文(statement)が全ての命令列の命令文を一緒に接続した命令文である命令列を返す。
+結果の命令列により必要とされる、または変更されるレジスタの決定が繊細な点になる。
+これは命令列のどれかにより変更されるレジスタが変更される。
+またこれは最初の命令列が実行する前に初期化されなければならないレジスタ(最初の命令列で必要とされるレジスタ)に加えて、それに続く命令列により初期化されない(変更されない)他の命令列により必要とされるレジスタ全て。

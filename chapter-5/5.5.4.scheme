@@ -55,3 +55,24 @@
         ((memq (car s1) s2) (list-difference (cdr s1) s2))
         (else (cons (car s1)
                     (list-difference (cdr s1) s2)))))
+
+二番目に重要な命令列結合器であるpreservingは、レジスタリストregsと、順に実行する2つの命令列seq1とseq2を取る。
+この結合器の返す命令列の持つ命令文は、seq1の命令文にseq2が続くものだが、regsのうちseq1に変更されるがreg2に必要とされるレジスタを守るため、seq1の前後には適切なsaveとrestoreが追加される。
+これを達成するために、preservingはまず、必要なsave、seq1の命令文、必要なrestoreを持つ命令列を作る。この命令列は、seq1によって必要とされるレジスタに加えて、保存と復元が行われるレジスタを必要とし、seq1で変更されるレジスタのうち、保存と復元が行われるレジスタを除いたものを変更する。
+次に、この拡張した命令列とseq2が通常の方法で連結される。
+(define (preserving regs seq1 seq2)
+  (if (null? regs)
+      (append-instruction-sequences seq1 seq2)
+      (let ((first-reg (car regs)))
+        (if (and (needs-register? seq2 first-reg)
+                 (modifies-register? seq1 first-reg))
+            (preserving (cdr regs)
+                        (make-instruction-sequence
+                         (list-union (list first-reg)
+                                     (registers-modified seq1)
+                                     (list first-reg))
+                         (append `((save ,first-reg))
+                                 (statements seq1)
+                                 `((restore ,first-reg))))
+                        seq2)
+            (preserving (cdr regs) seq1 seq2)))))

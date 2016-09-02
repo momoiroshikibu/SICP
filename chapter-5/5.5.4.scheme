@@ -76,3 +76,17 @@
                                  `((restore ,first-reg))))
                         seq2)
             (preserving (cdr regs) seq1 seq2)))))
+
+命令列結合器tack-on-instruction-sequenceはcompile-lambdaが手続きの本体をほかの命令列に連結するために使うもの。
+手続きの本体が埋め込まれているのは、組み合わせた命令列の一部として実行するためではないので、それのレジスタ使用は埋め込む命令列のレジスタ使用には影響しない。
+そのため、手続きの本体をほかの命令列にくっつけるときは、それが必要とするレジスタと変更するレジスタの集合を無視する。
+
+(define (tack-on-instruction-sequence seq body-seq)
+  (make-instruction-sequence
+   (registers-needed seq)
+   (registers-modified seq)
+   (append (statements seq)
+           (statements body-seq))))
+
+
+

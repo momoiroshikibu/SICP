@@ -1,0 +1,56 @@
+5.5.5 コンパイル済みコードの例
+
+compileを呼ぶことによって、再帰factorial手続きの定義をコンパイルすることにする。
+(compile
+ '(define (factorial n)
+    (if (= n 1)
+        1
+        (* (factorial (- n 1)) n)))
+ 'val
+ 'next)
+
+define式の値はレジスタvalに入れるよう規定している。
+defineを実行した後にコンパイル済みコードが何をするかには興味が無いので、リンクとしてnextを選んでいることに特に意味は無い。
+compileは、が定義であると判断し、compile-definitionを呼び出して、前から順に(ターゲットval)割り当てる値を求めるコード、リンクコードという並びをコンパイルする。
+envは定義を組み込むのに必要なので、値の計算の前後で保存される。リンクはnextなので、この場合リンクコードはない。
+よって、コンパイル済みコードの骨組みは次のようになる。
+<値を計算するコードで変更されるならenvを保存>
+<ターゲットval, リンクnextでの定義の値のコンパイル>
+<上で保存していたらenvを復元>
+(perform (op define-variable!)
+         (const factorial)
+         (reg val)
+         (reg env))
+(assign val (const ok))
+
+変数factorialの値を作るためにコンパイルする式はlambda式で、その値は階乗を計算する手続き。
+compileはcompile-lambdaを読んでこれを処理する。
+compile-lambdaは手続きの本体をコンパイルし、それに新しいエントリポイントとしてラベルをつけ、新しいエントリポイントにある手続き本体を実行時環境と組み合わせて結果をvalに割り当てる命令を生成する。
+次に、命令列はこの時点で挿入されるコンパイル済みコードをスキップする。
+手続きのコード自信は、まず手続きの定義環境を、仮引数nを手続きの引数に束縛するフレームによって拡張します。
+それから実際の手続き本体が続きます。変数の値のためのコードはenvレジスタを変更しないので、うえで示したオプションのsaveとrestoreは生成されない。
+(assign val
+        (op make-compiled-procedure)
+        (label entry2)
+        (reg env))
+(goto (label after-lambda1))
+
+entry2
+(assign env (op compiled-procedure-env) (reg proc))
+(assign env
+        (op extend-environment)
+        (const (n))
+        (reg argl)
+        (reg env))
+<手続き本体のコンパイル>
+
+after-lambda1
+(perform (op define-variable!)
+         (const factorial)
+         (reg val)
+         (reg env))
+(assign val (const ok))
+
+手続きの本体は、常にターゲットvalとリンクreturnを持つ命令列として(compile-lambda-bodyによって)コンパイルされます。今回の場合、命令列は一つのif式からなります。
+(if (= n 1)
+    (* (factorial (- n 1)) n))

@@ -88,5 +88,16 @@
    (append (statements seq)
            (statements body-seq))))
 
-
+compile-ifとcompile-prcedure-callは、テストに続く2つの選択肢の分岐を追加するために、parallel-instruction-sequencesという特別な結合器を使う。
+2つの分岐が順に実行されることは決して無い。
+テストの評価がどのようなものであっても、どちらかひとつの分岐に入ることになる。
+このため、ふたつ目の分岐に必要とされるレジスタは、それがひとつ目の分岐に修正されるものであっても、組み合わせ後の命令列で必要とされることになる。
+(define (parallel-instruction-sequence seq1 seq2)
+  (make-instruction-sequence
+   (list-union (registers-needed seq1)
+               (registers-needed seq2))
+   (list-union (registers-modified seq1)
+               (registers-modified seq2))
+   (append (statements seq1)
+           (statements seq2))))
 

@@ -54,3 +54,19 @@ after-lambda1
 手続きの本体は、常にターゲットvalとリンクreturnを持つ命令列として(compile-lambda-bodyによって)コンパイルされます。今回の場合、命令列は一つのif式からなります。
 (if (= n 1)
     (* (factorial (- n 1)) n))
+
+compileifが生成するコードは、まず最初に術後を計算し、それからその結果を確認して、術後が偽であれば真の分岐をスキップする。envとcontinueは術後コードの前後で保存される。
+これらはif式の残りの部分で必要となる可能性があるため。
+このif式は手続きの本体を構成する命令列内の最後の式であり、ターゲットはvalで、リンクはreturnであるため、真と偽のぶん機はどちらもターゲットvalとリンクreturnでコンパイルされる。
+
+<述語により変更され、分岐により必要とされるのであればcontinue, envを保存する>
+<ターゲットval,リンクnextでの述語のコンパイル>
+<上で保存していればcontinue,envを復元>
+(test (op false?) (reg val))
+(branch (label false-branch4))
+true-branch5
+<ターゲットval,リンクreturnでの真の分岐のコンパイル>
+false-branch4
+<ターゲットval,リンクreturnでの偽の分岐のコンパイル>
+after-if3
+

@@ -70,3 +70,35 @@ false-branch4
 <ターゲットval,リンクreturnでの偽の分岐のコンパイル>
 after-if3
 
+述語(= n 1)は手続き呼び出し。これは演算子(記号=)を検索し、その値をprocに入れる。
+次に引数である1と、変数nの値をarglに集める。
+それから、procに入っているものが基本手続きか複合手続きかをテストし、それにしたがって基本手続きの分岐か複合手続きの分岐にディスパッチする。
+どちらの分岐もラベルafter-callから再開する。
+演算子と被演算子の評価の前後ではレジスタを保存する必要があるが、今回の場合はこれらの評価は問題となるレジスタを変更しないため、結果的にレジスタの保存は行われない。
+(assign proc
+        (op lookup-variable) (const =) (reg env))
+(assign val (const 1))
+(assign argl (op list) (reg val))
+(assign val
+        (op lookup-variable-value) (const n) (reg env))
+(assign argl (op cons) (reg val) (reg argl))
+(test (op primitive-procedure?) (reg proc))
+(branch (label primitive-branch17))
+compiled-branch16
+(assign continue (label after-call15))
+(assign val (op compiled-procedure-entry) (reg proc))
+(goto (reg val))
+primitive-branch17
+(assign val
+        (op apply-primitive-procedure)
+        (reg proc)
+        (reg argl))
+after-call15
+
+真の分岐は定数1であり、これを(ターゲットvalとリンクreturnで)コンパイルすると以下のようになる。
+(assign val (const 1))
+(goto (reg continue))
+
+偽の分岐のコードはまた別の手続き呼び出し。
+手続きは記号*の値で、引数はnと、また別の手続き呼び出しの結果。
+これらの呼び出しはそれぞれprocとarglと、その手続自信の基本手続きと複合手続きの分岐を準備する。

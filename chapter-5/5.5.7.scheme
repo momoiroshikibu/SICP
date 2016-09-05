@@ -17,3 +17,23 @@ ok
 ;;; EC-Eval value:
 120
 
+評価機にコンパイルされた手続きの取り扱いを可能にするには、apply-dispatchのコードを変更して、それがコンパイルされた手続きを(複合、またはプリミティブな手続きから区別可能なものとして)認識し、制御を直接コンパイルされたコードのエントリポイントへと移動させる必要がある。
+
+apply-dispatch
+(test (op primitive-procedure?) (reg proc))
+(branch (label primitive-apply))
+(test (op compound-procedure?) (reg proc))
+(branch (label comopund-apply))
+(test (op compiled-procedure?) (reg proc))
+(branch (label compiled-apply))
+(goto (label unknown-procedure-type))
+
+compiled-apply
+(restore continue)
+(assign val (op compiled-procedure-entry) (reg proc))
+(goto (reg val))
+
+compiled-applyでのcontinueの復元に注意。
+評価機はapply-dispatchにて継続がスタックの一番上になるように準備されている。
+一方で、コンパイルされたコードのエントリポイントは継続がcontinueの中にあることを期待しています。
+そのため、continueはコンパイルされたコードが実行される前に復元されなければなりません。
